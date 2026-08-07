@@ -495,3 +495,15 @@ textarea[readonly] { background: #f8faf8; }
   .variant-tabs { justify-content: flex-start; }
   .variant-button { flex: 1 1 30%; }
 }
+
+.extraction-option { margin: .75rem 0 .35rem; }
+.extraction-status {
+  margin: 0 0 1rem;
+  padding: .65rem .8rem;
+  border: 1px solid var(--border, #d7dbe0);
+  border-radius: .65rem;
+  font-size: .9rem;
+  line-height: 1.5;
+}
+.extraction-status[data-confidence="high"] { font-weight: 600; }
+.engine-ready { font-weight: 700; }

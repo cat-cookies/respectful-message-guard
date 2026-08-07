@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="純前端、零上傳的職場與服務溝通風險檢核器。內建離線高風險用語語料庫，原始訊息只供檢核，可複製版本僅由使用者另填的實質工作內容組成。">
+  <meta name="description" content="職場與服務溝通風險檢核器。可從原始訊息抽取真正工作意圖、移除羞辱與情緒施壓、補成可執行內容，再以本機 Python／瀏覽器 Python／離線 JavaScript 分層引擎重新生成繁體中文訊息。">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
   <meta name="color-scheme" content="light dark">
   <title>訊息溝通風險檢核器</title>
   <link rel="stylesheet" href="styles.css">
@@ -26,7 +26,7 @@
           <p class="lead">同一句不當訊息，可能依發生場域、雙方身分、權勢關係、是否持續，以及是否與性或性別有關，而分別適用不同制度。請先閱讀，再進入文字檢核功能。</p>
         </div>
         <div class="privacy-badges" aria-label="隱私設計">
-          <span>純前端</span><span>零上傳</span><span>無追蹤</span><span>不留存內容</span>
+          <span>本機處理</span><span>零文字上傳</span><span>無追蹤</span><span>不留存內容</span>
         </div>
       </header>
 
@@ -140,9 +140,10 @@
       <div>
         <p class="eyebrow">瀏覽器本機處理</p>
         <h1>訊息溝通風險檢核器</h1>
-        <p>先檢核原始訊息，再填入真正要傳達的工作事實與要求；可複製版本不會自動帶入原始訊息。</p>
+        <p>貼上原始訊息後，系統會先抽出真正工作意圖，再移除羞辱、威脅與情緒施壓，補成可執行內容後重新生成訊息；不直接複製原句。</p>
       </div>
       <div class="header-actions">
+        <span class="corpus-chip">潤稿引擎：<strong id="engineStatus">偵測中</strong></span>
         <span class="corpus-chip">離線語料庫：<strong id="corpusStats">載入中</strong></span>
         <button id="showIntroButton" class="ghost-button" type="button">重新閱讀法制說明</button>
         <button id="showPrivacyButton" class="ghost-button" type="button">隱私與技術說明</button>
@@ -153,9 +154,9 @@
       <section class="panel input-panel" aria-labelledby="inputTitle">
         <div class="panel-heading">
           <div>
-            <p class="step-label">步驟一｜只做風險檢核</p>
+            <p class="step-label">步驟一｜風險檢核＋工作意圖抽取</p>
             <h2 id="inputTitle">貼上原始訊息</h2>
-            <p class="field-help strong-help">這個欄位只拿來找出高風險用語、表情符號與個資；<strong>不會拿來組成右側可複製版本。</strong></p>
+            <p class="field-help strong-help">系統會從原始訊息抽取「工作主題、客觀事實、要求行動、期限、原因／影響」，並在有明確稱呼時辨識「對象線索」；<strong>辱罵、羞辱、威脅與情緒施壓只作為風險訊號，不會直接成為輸出句子。</strong></p>
           </div>
           <button id="loadExampleButton" class="text-button" type="button">載入示例</button>
         </div>
@@ -185,23 +186,28 @@
         </div>
 
         <label class="textarea-label" for="sourceText">
-          <span>原始訊息（只供檢核）</span>
+          <span>原始訊息（供風險檢核與工作意圖抽取）</span>
           <textarea id="sourceText" rows="12" maxlength="8000" placeholder="例如：你到底要講幾次才懂？再不回我就不用來了！😡 [貼圖] 王小明的電話是0912345678，大家自己看著辦。"></textarea>
         </label>
         <div class="textarea-meta">
           <span id="charCount">0 / 8000</span>
-          <span>內容只存在目前頁面的記憶體，不會送出，也不會自動複製到建議版本。</span>
+          <span>文字內容只在本機處理。若啟用瀏覽器 Python，只會從 CDN 下載 Python 執行環境，不會把你的訊息送到 CDN。</span>
         </div>
         <p id="pasteNotice" class="paste-notice" role="status" hidden>偵測到剪貼簿內含圖片或貼圖。本網站不會讀取、上傳或保存圖片；分析時會將「使用貼圖」列為溝通風險提醒。</p>
         <section class="substance-box" aria-labelledby="substanceTitle">
           <div class="substance-heading">
             <div>
-              <p class="step-label">步驟二｜建立真正要傳達的內容</p>
-              <h3 id="substanceTitle">補上實質工作內容</h3>
+              <p class="step-label">步驟二｜確認自動抽取結果</p>
+              <h3 id="substanceTitle">真正要傳達的工作內容</h3>
             </div>
-            <span class="source-lock-badge">輸出只讀取這一區</span>
+            <span class="source-lock-badge">先抽取，再重寫</span>
           </div>
-          <p class="field-help"><strong>這一區不只檢查語氣，也檢查「工作要求本身」是否出現高風險。</strong>請填寫要處理的事項、客觀事實、希望對方完成的行動、期限、原因，以及必要時的職務依據。若內容涉及陪酒／私人差事、強制社交、休假或下班後持續待命、明顯不合理目標、性別化要求、不實紀錄或安全程序規避，系統會直接提示或阻止產生可複製版本。</p>
+          <p class="field-help"><strong>預設會先從原始訊息自動填入空白欄位；你可以再修正。</strong>系統仍會檢查「工作要求本身」是否合理。涉及陪酒／私人差事、強制社交、休假或下班後持續待命、明顯不合理目標、性別化要求、不實紀錄或安全程序規避時，會直接提示或阻止產生可複製版本。</p>
+          <label class="check-row extraction-option" for="autoExtractOption">
+            <input id="autoExtractOption" type="checkbox" checked>
+            <span>自動從原始訊息抽取工作意圖，僅補入目前空白欄位</span>
+          </label>
+          <p id="extractionStatus" class="extraction-status" role="status">尚未抽取。</p>
 
           <label class="textarea-label" for="topicText">
             <span>事項或工作主題</span>
@@ -276,14 +282,14 @@
           <div>
             <p class="step-label">步驟三｜輸出</p>
             <h2 id="resultTitle">去除高風險語句後的工作訊息建議</h2>
-            <p class="result-subtitle">通過工作合理性與風險檢核後，潤稿引擎只依你填寫的事實、行動、期限、原因與對象重新組句。原始訊息不會進入輸出；三種版本可直接切換比較。</p>
+            <p class="result-subtitle">通過工作合理性與風險檢核後，引擎會依抽取或人工修正後的工作內容重新生成句子。原始訊息只提供意圖抽取與風險判斷，不會直接複製成結果；三種版本可切換比較。</p>
           </div>
           <div id="riskBadge" class="risk-badge neutral">尚未檢核</div>
         </div>
 
         <div id="emptyState" class="empty-state">
           <h3>尚未產生結果</h3>
-          <p>左側原始訊息只做風險檢核；請另外填寫實質工作內容。系統會以內建離線語料庫檢核後，只用實質內容組成可複製版本。</p>
+          <p>貼上原始訊息後可直接按「檢核並潤稿」。系統會先抽取工作意圖並補入空白欄位，再進行工作合理性與風險檢核，最後重新生成可直接傳送的版本。</p>
         </div>
 
         <div id="resultContent" hidden>
@@ -291,7 +297,7 @@
             <div class="variant-heading">
               <div>
                 <h3 id="variantTitle">比較三種潤稿版本</h3>
-                <p id="variantHint">三種版本都只使用「實質工作內容」。</p>
+                <p id="variantHint">三種版本都使用「抽取／確認後的實質工作內容」，不直接複製原句。</p>
               </div>
               <div class="variant-tabs" role="group" aria-label="潤稿版本">
                 <button id="variantNaturalButton" class="variant-button" type="button" aria-pressed="false">自然工作訊息</button>
@@ -305,7 +311,7 @@
             <span>目前選取版本</span>
             <textarea id="safeText" rows="10" readonly></textarea>
           </label>
-          <p id="outputSourceNotice" class="output-source-notice safe">建議版本只會由實質內容欄位組成。</p>
+          <p id="outputSourceNotice" class="output-source-notice safe">建議版本會由抽取／確認後的實質工作內容重新生成。</p>
 
           <section class="coverage-box" aria-labelledby="coverageTitle">
             <div>
@@ -363,8 +369,8 @@
     </section>
 
     <footer class="site-footer">
-      <p>本工具採純前端離線語料庫、工作合理性規則與結構化潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 1.6.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜無後端、無第三方程式庫、無分析追蹤、無 Cookie 或網路請求。</p>
+      <p>本工具採離線語料庫、工作合理性規則與多層潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
+      <p>版本 1.8.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機 Python 優先、瀏覽器 Python 可用、離線 JavaScript 保底；無雲端文字 API、無分析追蹤、無 Cookie。</p>
     </footer>
   </div>
 
@@ -374,18 +380,18 @@
       <button id="closePrivacyButton" class="icon-button" type="button" aria-label="關閉">×</button>
     </div>
     <div class="dialog-body">
-      <h3>零後端，但有離線語料庫</h3>
-      <p>網站沒有帳號、伺服器資料庫、API、雲端模型、分析追蹤或廣告程式。高風險資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；每筆用語或規則均配對風險警示、較安全處理策略與法制標籤；另加入完整案例相似語句層，用來補足同義改寫、隱性羞辱、煤氣燈與權勢壓迫。</p>
+      <h3>文字仍在本機處理</h3>
+      <p>網站沒有帳號、伺服器資料庫、雲端文字模型、分析追蹤或廣告程式。高風險資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；若瀏覽器 Python 可用，頁面只會向固定 CDN 下載 Pyodide 執行環境，輸入文字仍在你的瀏覽器內執行，不會送到第三方文字 API。</p>
       <h3>工作內容也會被檢核</h3>
       <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
-      <h3>原始訊息與輸出完全分流</h3>
-      <p>原始訊息只供風險掃描，程式的輸出組句函式沒有原始訊息參數；可複製版本只讀取「實質工作內容」區塊，避免把原始辱罵、性意味、威脅或其他不當內容重新帶回輸出。</p>
+      <h3>原始訊息先抽取，不直接複製</h3>
+      <p>原始訊息會先被拆成工作主題、客觀事實、要求行動、期限與原因／影響；若句首有明確稱呼，也會辨識對象線索。辱罵、羞辱、性意味、威脅與情緒施壓只作為風險訊號並在抽取階段移除；輸出使用抽取後的結構化內容重新生成，另有「原句直接複製」相似度防護。</p>
       <h3>潤稿不是固定模板拼接</h3>
       <p>系統會依溝通目的、對象、強度與文字風格產生多個候選句，再以重複用語、標籤式公文語、過多「請」、句子冗長與內容重複等指標排序，選出較自然的版本。職務依據預設只供安全判讀，不會自動塞進訊息。</p>
       <h3>資料最小化</h3>
       <p>原始文字與結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有「本分頁是否略過法制說明」會以 sessionStorage 記錄；關閉分頁後即失效。</p>
-      <h3>網路封鎖</h3>
-      <p>頁面以 Content Security Policy 將 connect-src 設為 none，程式不使用 fetch、XMLHttpRequest、WebSocket 或第三方資源。</p>
+      <h3>網路使用範圍</h3>
+      <p>GitHub Pages 線上使用時，頁面可向 jsDelivr 下載固定版本的 Pyodide 執行環境；不會把輸入文字加入網址、請求內容或送至第三方 API。本機啟動版只呼叫 127.0.0.1 的 Python 服務；若 Python 不可用，核心功能會退回隨網站一起部署的 JavaScript 引擎。</p>
       <h3>低耗能</h3>
       <p>使用小型規則引擎，不下載大型模型、不進行伺服器推論，也不持續背景運算。分析只在按下按鈕時執行。</p>
       <h3>仍須注意</h3>
@@ -393,9 +399,8 @@
     </div>
   </dialog>
 
-  <script src="expert-corpus.js" defer></script>
-  <script src="risk-corpus.js" defer></script>
-  <script src="rewrite-engine.js" defer></script>
+  <script src="bullying-corpus.js" defer></script>
+  <script src="safe-message-corpus.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

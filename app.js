@@ -1,3 +1,1285 @@
+/* Respectful Message Guard 1.8.0 - consolidated production runtime */
+/* Section 1: structured rewrite engine */
+'use strict';
+
+/*
+ * Structured Chinese rewrite engine
+ * ---------------------------------
+ * Purpose: turn user-supplied structured work facts into natural Traditional
+ * Chinese without using the raw/original message as generation material.
+ *
+ * Design constraints:
+ * - deterministic and fully local;
+ * - no network / no external model;
+ * - never invent facts, legal conclusions, sanctions, dates, people or motives;
+ * - basis/職務依據 is an internal safety field by default and is not exposed
+ *   unless the user explicitly enables includeBasis;
+ * - generate several candidates, score them for formulaic/repetitive wording,
+ *   and keep the best candidate.
+ */
+
+(function initRewriteEngine(root, factory) {
+  const api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (root) root.MESSAGE_REWRITE_ENGINE = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function factory() {
+  const SAFE_CORPUS = (() => {
+    if (typeof globalThis !== 'undefined' && globalThis.SAFE_MESSAGE_CORPUS_DATA) return globalThis.SAFE_MESSAGE_CORPUS_DATA;
+    if (typeof module !== 'undefined' && module.exports) {
+      try { return require('./safe-message-corpus.js'); } catch (_) { return { stylePatterns: {}, version: 'unavailable' }; }
+    }
+    return { stylePatterns: {}, version: 'unavailable' };
+  })();
+  const END_PUNCT = /[。！？!?]$/u;
+
+  const GENERIC_FORMULAIC = [
+    '說明如下', '上述事項', '相關原因、影響或程序', '工作必要性或職務依據',
+    '依既定規範、權限及正式程序辦理', '如有客觀困難', '請具體說明，以便協調後續處理'
+  ];
+
+  const PURPOSE_CLOSINGS = {
+    remind: {
+      cooperative: ['如果進度上有卡住的地方，也可以直接說，我們再一起確認。', '若目前有影響進度的情況，也請一併告知。'],
+      directive: ['若無法如期完成，請在期限前告知目前進度與預計完成時間。', '如果時程有變動，請提早告知目前進度。', '若進度和原定時程不同，請先回覆預計完成時間。'],
+      formal: ['如無法於期限內完成，請於期限前說明原因及預計完成時間。', '如預計無法如期完成，請於期限前回覆目前進度及後續時程。', '如時程需調整，請於原期限前提出並說明預計完成時間。']
+    },
+    correct: {
+      cooperative: ['如果對版本或處理方式有不同理解，可以直接提出來確認。', '若有哪一處和你的理解不同，可以一起確認後再處理。'],
+      directive: ['若對修正內容有疑問，請在處理前先確認。', '如果對要求有不同理解，請先提出來確認。', '若有不清楚的地方，先確認後再處理。'],
+      formal: ['如對事實、版本或處理標準有疑義，請於期限前提出。', '如對修正範圍或判斷基準有疑義，請先提出具體內容確認。', '如對本次處理內容有不同理解，請於執行前提出說明。']
+    },
+    rule: {
+      cooperative: ['如果實際執行上有特殊情況，可以提出來一起確認。'],
+      directive: ['如有例外情形，請先說明具體狀況，再確認後續處理方式。', '若現場情況與一般規則不同，請先提出再確認處理方式。', '如果有特殊情況，先把具體狀況說明清楚再處理。'],
+      formal: ['如有例外或無法依規定辦理之情形，請先提出具體事由並循正式程序確認。', '如有例外適用之必要，請先敘明具體事由並完成確認程序。', '如實際情形無法依一般規定辦理，請先提出具體事實及處理依據。']
+    },
+    refuse: {
+      cooperative: ['如果需要，我可以再一起確認其他可行的處理方式。'],
+      directive: ['如需改採其他方式，請提出具體需求後再確認。', '如果需要其他處理方式，請把需求說明清楚後再確認。', '若原方式不適用，可以提出其他可行方案再討論。'],
+      formal: ['如需採行其他方案，請循正式程序提出並確認其適法性與可行性。', '如需變更處理方式，請提出具體方案並完成必要確認。', '如另有處理需求，請依權責及程序提出具體方案。']
+    },
+    schedule: {
+      cooperative: ['如果時段上有衝突，也請告知可配合的時間，我們再調整。'],
+      directive: ['若時段無法配合，請一併回覆可行的替代時間。', '如果原時段有衝突，請直接提供可以配合的時間。', '若目前排定時間不方便，請回覆替代時段。'],
+      formal: ['如無法配合排定時段，請於期限前提出可行之替代時段。', '如排定時段有衝突，請於期限前回覆可配合之替代時間。', '如需調整時段，請於期限前提出可行時間，以利後續安排。']
+    },
+    general: {
+      cooperative: ['如果有不同理解，也可以直接提出來確認。'],
+      directive: ['如有需要釐清之處，請一併回覆。', '若有不同理解，請直接指出需要確認的地方。', '如果有哪一點需要再確認，請一併提出。'],
+      formal: ['如對內容有疑義，請提出具體說明。', '如有不同意見或需補充之處，請提出具體內容。', '如需進一步釐清，請提出具體事項。']
+    }
+  };
+
+  function normalize(text) {
+    return String(text || '')
+      .normalize('NFKC')
+      .replace(/[\u200B\u200C\u2060\uFEFF]/gu, '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/,/g, '，')
+      .replace(/;/g, '；')
+      .replace(/:/g, '：')
+      .replace(/\?/g, '？')
+      .replace(/!/g, '！')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\s*([，。；：、！？])\s*/g, '$1')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  function stripEnd(text) {
+    return normalize(text).replace(/[。！？!?；;，,\s]+$/gu, '').trim();
+  }
+
+  function sentence(text) {
+    const value = normalize(text);
+    if (!value) return '';
+    return END_PUNCT.test(value) ? value : `${value}。`;
+  }
+
+  function stripLeadingAction(text) {
+    return stripEnd(text)
+      .replace(/^(?:麻煩|煩請|拜託)?(?:請)?(?:務必)?(?:協助)?(?:幫忙)?\s*/u, '')
+      .replace(/^(?:請|麻煩|煩請|務必)\s*/u, '')
+      .trim();
+  }
+
+  function stripLeadingReason(text) {
+    return stripEnd(text)
+      .replace(/^(?:原因(?:是|為)?|主要原因(?:是|為)?|因為|由於|考量|考慮到)\s*/u, '')
+      .trim();
+  }
+
+  function naturalize(text) {
+    let value = stripEnd(text);
+    if (!value) return '';
+    value = value
+      .replace(/需於/g, '需要在')
+      .replace(/須於/g, '需要在')
+      .replace(/需在/g, '需要在')
+      .replace(/尚未/g, '還沒有')
+      .replace(/尚缺(?:少)?/g, '還缺')
+      .replace(/此項/g, '這項')
+      .replace(/該項/g, '這項')
+      .replace(/未能/g, '無法')
+      .replace(/予以(?=(?:確認|處理|回覆|提供|補充|修正|調整|說明|辦理|檢核|查核))/g, '')
+      .replace(/以避免/g, '避免')
+      .replace(/避免後續使用(?!到)/g, '避免後續使用到')
+      .replace(/進行(?=(?:確認|回覆|處理|檢核|查核|修正|調整|彙整|上傳|簽核|安排|討論|說明))/g, '')
+      .replace(/與(?=[\u3400-\u9FFF])/gu, '和');
+
+    // 「且」直接改成「也」容易產生「也版本日期」這類殘句；
+    // 一般工作訊息使用「而且」可保留原有主詞結構，又較自然。
+    value = value.replace(/，且/g, '，而且');
+    return value;
+  }
+
+  function formalize(text) {
+    let value = stripEnd(text);
+    if (!value) return '';
+    value = value
+      .replace(/我這邊/g, '目前')
+      .replace(/跟/g, '與')
+      .replace(/需要在/g, '需於')
+      .replace(/麻煩/g, '請')
+      .replace(/可以/g, '得');
+    return value;
+  }
+
+  function normalizeDeadline(text, style) {
+    const value = stripEnd(text);
+    if (!value) return '';
+    if (style === 'formal') return value.replace(/^在/u, '').replace(/^於/u, '');
+    return value.replace(/^於/u, '').replace(/^在/u, '');
+  }
+
+  function deadlineForAction(text) {
+    const value = stripEnd(text).replace(/^在/u, '').replace(/^於/u, '');
+    if (!value) return '';
+    // 欄位兼容「期限」與「回覆時間」：只有明確的單一時刻才自動補「前」。
+    // 「明天上午」「三個工作日內」「8月10日前」等則原樣保留，避免改變語意。
+    if (/(?:前|以前|之前|內|當日|當天|上午|下午|晚上|早上|中午|本週|下週|明天|今日|今天)/u.test(value)) return value;
+    if (/^(?:凌晨|早上|上午|中午|下午|晚上)?\s*\d{1,2}(?::\d{2}|點|時)(?:\d{1,2}分)?$/u.test(value)) return `${value}前`;
+    return value;
+  }
+
+  function personWords(audience) {
+    if (audience === 'supervisor' || audience === 'client' || audience === 'student' || audience === 'public') {
+      return { you: '您', possessive: '您的' };
+    }
+    return { you: '你', possessive: '你的' };
+  }
+
+  function actionSentence(action, deadline, tone, audience, style) {
+    const rawAction = stripLeadingAction(style === 'formal' ? formalize(action) : naturalize(action));
+    const time = deadlineForAction(normalizeDeadline(deadline, style));
+    if (!rawAction) return '';
+
+    const { you } = personWords(audience);
+    const actionCore = rawAction;
+    const followUp = actionCore.match(/^後續(?:再)?\s*(.+)$/u);
+    const thirdParty = /^(?:由|改由|交由|轉由|透過|經由)/u.test(actionCore);
+
+    if (style === 'formal') {
+      if (followUp) {
+        const core = followUp[1];
+        return time ? `後續請於${time}${core}。` : `後續請${core}。`;
+      }
+      if (time) return `請於${time}${actionCore}。`;
+      return `請${actionCore}。`;
+    }
+
+    if (style === 'concise') {
+      if (followUp) {
+        const core = followUp[1];
+        return time ? `${time}前後續請${core}。`.replace(/前前/u, '前') : `後續請${core}。`;
+      }
+      if (time) return `${time}請${actionCore.replace(/^請/u, '')}。`;
+      return `請${actionCore}。`;
+    }
+
+    // 對服務對象／學生／民眾，第三方處理（「由個管師…」）不寫成「麻煩您由…」。
+    if (audience === 'client' || audience === 'student' || audience === 'public') {
+      if (thirdParty) {
+        if (time) return `後續可在${time}${actionCore}。`;
+        return `後續可${actionCore}。`;
+      }
+      if (followUp) {
+        const core = followUp[1];
+        if (time) return `後續再麻煩${you}在${time}${core}。`;
+        return `後續再麻煩${you}${core}。`;
+      }
+      if (time) return `再麻煩${you}在${time}${actionCore}。`;
+      return `再麻煩${you}${actionCore}。`;
+    }
+
+    // 對主管保持尊稱；對同事則避免每句都塞「你」。
+    if (audience === 'supervisor') {
+      if (followUp) {
+        const core = followUp[1];
+        if (time) return `後續再麻煩您在${time}${core}。`;
+        return `後續再麻煩您${core}。`;
+      }
+      if (tone === 'cooperative') {
+        if (time) return `麻煩您在${time}${actionCore}。`;
+        return `麻煩您${actionCore}。`;
+      }
+      if (time) return `請您在${time}${actionCore}。`;
+      return `請您${actionCore}。`;
+    }
+
+    if (followUp) {
+      const core = followUp[1];
+      if (tone === 'cooperative') return time ? `後續麻煩在${time}${core}。` : `後續麻煩${core}。`;
+      return time ? `後續請在${time}${core}。` : `後續請${core}。`;
+    }
+
+    if (tone === 'cooperative') {
+      if (time) return `麻煩在${time}${actionCore}。`;
+      return `麻煩${actionCore}。`;
+    }
+    if (tone === 'formal') {
+      if (time) return `請於${time}${actionCore}。`;
+      return `請${actionCore}。`;
+    }
+    if (time) return `請在${time}${actionCore}。`;
+    return `請${actionCore}。`;
+  }
+
+  function splitReasonClauses(reason, style) {
+    const value = stripLeadingReason(style === 'formal' ? formalize(reason) : naturalize(reason));
+    if (!value) return [];
+    return value
+      .split(/[；。\n]+/u)
+      .flatMap(part => part.split(/，(?=(?:避免|確保|方便|以利|以便|供|為了|配合|需|須|應|需要|後續|明|今|本))/u))
+      .map(stripEnd)
+      .filter(Boolean);
+  }
+
+  function naturalReasonClause(clause, index = 0) {
+    let raw = naturalize(clause);
+    if (!raw) return '';
+
+    // 「需要在明日上午會議前完成…」→「明日上午會議前還要完成…」較像真人工作訊息。
+    raw = raw.replace(/^需要在(.+?前)(.+)$/u, '$1還要$2');
+    raw = raw.replace(/^需要在((?:今天|今日|明天|明日|本週|下週|週[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午)[^，。]*?)(完成|確認|回覆|處理|提供|提交|補齊|彙整|上傳|簽核|安排|辦理)/u, '$1還要$2');
+
+    if (/^避免/u.test(raw)) return index > 0 ? raw.replace(/^避免/u, '也能避免') : raw;
+    if (/^確保/u.test(raw)) return index > 0 ? raw.replace(/^確保/u, '也能確保') : raw;
+    if (/^方便/u.test(raw)) return index > 0 ? raw.replace(/^方便/u, '也方便') : raw;
+    if (/^供/u.test(raw)) return raw.replace(/^供/u, index > 0 ? '也方便' : '方便');
+    if (/^需要(?:完成|進行|辦理|確認|彙整|審查|處理|提供|提交|上傳|簽核|安排)/u.test(raw)) {
+      return raw.replace(/^需要/u, '後續還需要');
+    }
+    if (/^(?:需|須|應|需要)/u.test(raw) && index > 0) return `另外${raw}`;
+    return raw;
+  }
+
+  function formalReasonClause(clause) {
+    let raw = formalize(clause);
+    if (!raw) return '';
+    if (/^避免/u.test(raw)) return raw.replace(/^避免/u, '以避免');
+    if (/^確保/u.test(raw)) return raw.replace(/^確保/u, '以確保');
+    if (/^方便/u.test(raw)) return raw.replace(/^方便/u, '以利');
+    if (/^供/u.test(raw)) return raw.replace(/^供/u, '以供');
+    if (/^配合/u.test(raw)) return raw.replace(/^配合/u, '為配合');
+    if (/^為了/u.test(raw)) return raw.replace(/^為了/u, '為');
+    return raw;
+  }
+
+  function reasonSentence(reason, style) {
+    const clauses = splitReasonClauses(reason, style);
+    if (!clauses.length) return '';
+
+    if (style === 'formal') {
+      const rendered = clauses.map(formalReasonClause).filter(Boolean);
+      if (!rendered.length) return '';
+      if (rendered.length === 1) {
+        const one = rendered[0];
+        if (/^(?:需|須|應|為|以利|以便|以避免|以確保|以供|為配合|作為)/u.test(one)) return sentence(one);
+        return sentence(`此安排主要考量${one}`);
+      }
+      return sentence(rendered.join('，並'));
+    }
+
+    const rendered = clauses.map((c, i) => naturalReasonClause(c, i)).filter(Boolean);
+    if (!rendered.length) return '';
+    const text = rendered.join('，');
+    if (/^(?:明|今|本|下週|後續|目前|需要|需|須|應)/u.test(text)) return sentence(text);
+    if (/^(?:避免|確保|方便|供|配合|為了|以利|以便)/u.test(text)) return sentence(`這樣可以${text}`);
+    if (/^因/u.test(text)) return sentence(text);
+    return sentence(`主要是因為${text}`);
+  }
+
+  function integratedActionReason(action, deadline, reason, tone, audience, style, purpose = 'general') {
+    const actionBlock = actionSentence(action, deadline, tone, audience, style);
+    const clauses = splitReasonClauses(reason, style);
+    if (!actionBlock || !clauses.length) return actionBlock || reasonSentence(reason, style);
+
+    const actionCore = actionBlock.replace(/[。！？!?]+$/u, '');
+    if (style === 'formal') {
+      const reasonBits = clauses.map(formalReasonClause).filter(Boolean);
+      if (!reasonBits.length) return actionBlock;
+      const first = reasonBits[0];
+      const rest = reasonBits.slice(1);
+      // 能作目的／效果補語者直接接在要求後；另有獨立義務時以分號區隔。
+      if (/^(?:以利|以便|以避免|以確保|以供|為配合|為)/u.test(first)) {
+        return `${actionCore}，${[first, ...rest].join('，並')}。`;
+      }
+      if (rest.length && rest.every(x => /^(?:以利|以便|以避免|以確保|以供|為配合|為)/u.test(x))) {
+        return `${actionCore}；${first}，${rest.join('，並')}。`;
+      }
+      return `${actionCore}。${sentence(reasonBits.join('，並'))}`;
+    }
+
+    const reasonBits = clauses.map((c, i) => naturalReasonClause(c, i)).filter(Boolean);
+    if (!reasonBits.length) return actionBlock;
+
+    // 若理由是獨立事實（例如「主管下午有會議安排」），自然訊息用「因為…，請…」而不是硬接逗號。
+    if (reasonBits.length === 1 && !/^(?:避免|確保|方便|供|明|今|本|下週|後續|需要|需|須|應|另外|以利|以便|為了|配合)/u.test(reasonBits[0])) {
+      const why = reasonBits[0].replace(/^因為/u, '');
+      return `因為${why}，${actionCore}。`;
+    }
+
+    // 拒絕／界線說明時，先交代理由再說替代處理方式，比「先下指令、後補理由」自然。
+    if (purpose === 'refuse' && /^(?:需要|需|須|應)/u.test(reasonBits[0])) {
+      const why = reasonBits.join('，').replace(/^需要/u, '仍需').replace(/^需/u, '仍需').replace(/^須/u, '仍須').replace(/^應/u, '仍應');
+      return `因為${why}，${actionCore}。`;
+    }
+
+    // 自然版優先把「避免／確保／方便／期限需求」接回行動句，避免出現碎裂的公文式短句。
+    const linked = reasonBits.map((bit, i) => {
+      if (/^避免/u.test(bit)) return bit;
+      if (/^也能(?:避免|確保)|^也方便/u.test(bit)) return bit;
+      if (/^確保/u.test(bit)) return bit;
+      if (/^方便/u.test(bit)) return `也${bit}`;
+      if (/^供/u.test(bit)) return `也${bit}`;
+      if (/^(?:明|今|本|下週|後續|.+前還要|.+還要|需要|另外需要)/u.test(bit)) return i === 0 ? bit : `另外${bit.replace(/^另外/u, '')}`;
+      return bit;
+    });
+    return `${actionCore}，${linked.join('，')}。`;
+  }
+
+  function topicLead(topic, fact, purpose, audience, style) {
+    const t = stripEnd(style === 'formal' ? formalize(topic) : naturalize(topic));
+    const f = stripEnd(style === 'formal' ? formalize(fact) : naturalize(fact));
+    if (!t) return '';
+
+    // 若事實本身已清楚含主題，不再重複一次。
+    if (f && (f.includes(t) || t.includes(f.slice(0, Math.min(10, f.length))))) return '';
+
+    const { you } = personWords(audience);
+    if (style === 'formal') return `關於${t}，`;
+    if (style === 'concise') return f ? `針對${t}，` : `針對${t}。`;
+
+    if (audience === 'client' || audience === 'student' || audience === 'public') {
+      if (purpose === 'refuse' || purpose === 'rule') return `您好，關於${t}，`;
+      return f ? `您好，想跟${you}確認${t}，` : `您好，想跟${you}確認${t}。`;
+    }
+    if (audience === 'supervisor') return f ? `想跟${you}確認${t}，` : `想跟${you}確認${t}。`;
+
+    if (purpose === 'remind' || purpose === 'schedule') return f ? `想確認${t}，` : `想確認${t}。`;
+    if (purpose === 'correct') return `針對${t}，`;
+    if (purpose === 'rule' || purpose === 'refuse') return `關於${t}，`;
+    return f ? `關於${t}，` : `關於${t}。`;
+  }
+
+  function factSentence(fact, purpose, audience, style, lead = '') {
+    const f = stripEnd(style === 'formal' ? formalize(fact) : naturalize(fact));
+    if (!f) return lead && /，$/u.test(lead) ? sentence(lead.replace(/，$/u, '')) : lead;
+
+    if (style === 'formal') {
+      if (lead && /，$/u.test(lead)) return sentence(`${lead}${f}`);
+      return sentence(f);
+    }
+    if (style === 'concise') {
+      if (lead && /，$/u.test(lead)) return sentence(`${lead}${f}`);
+      if (lead && /。$/u.test(lead)) return `${lead}${sentence(f)}`;
+      return sentence(f);
+    }
+
+    if (lead && /。$/u.test(lead)) {
+      // 已有自然開頭，不再加「目前情形如下」。
+      return `${lead}${sentence(f)}`;
+    }
+    if (lead && /，$/u.test(lead)) return sentence(`${lead}${f}`);
+
+    if (audience === 'supervisor') return sentence(f);
+    return sentence(f);
+  }
+
+  function chooseClosing(purpose, tone, style, seedText) {
+    if (style === 'concise') return f ? `針對${t}，` : `針對${t}。`;
+    const bucket = PURPOSE_CLOSINGS[purpose] || PURPOSE_CLOSINGS.general;
+    const list = style === 'formal' ? (bucket.formal || bucket.directive || []) : (bucket[tone] || bucket.directive || []);
+    if (!list.length) return '';
+    const idx = stableHash(seedText) % list.length;
+    return list[idx];
+  }
+
+  function basisSentence(basis, style) {
+    const value = stripEnd(style === 'formal' ? formalize(basis) : naturalize(basis));
+    if (!value) return '';
+    if (style === 'formal') return sentence(`本事項之職務依據為${value}`);
+    return sentence(`這項安排的工作依據是${value}`);
+  }
+
+  function characterBigrams(text) {
+    const value = stripEnd(text).replace(/[\s，。；：、！？!?「」『』（）()【】\[\]]+/gu, '');
+    const grams = new Set();
+    if (!value) return grams;
+    if (value.length === 1) { grams.add(value); return grams; }
+    for (let i = 0; i < value.length - 1; i += 1) grams.add(value.slice(i, i + 2));
+    return grams;
+  }
+
+  function fieldRetained(source, output) {
+    const src = stripEnd(source);
+    const out = stripEnd(output);
+    if (!src) return null;
+    if (!out) return false;
+    const compactSrc = src.replace(/[\s，。；：、！？!?「」『』（）()【】\[\]]+/gu, '');
+    const compactOut = out.replace(/[\s，。；：、！？!?「」『』（）()【】\[\]]+/gu, '');
+    if (compactOut.includes(compactSrc)) return true;
+    const a = characterBigrams(src);
+    const b = characterBigrams(out);
+    if (!a.size) return true;
+    let hit = 0;
+    for (const gram of a) if (b.has(gram)) hit += 1;
+    return hit / a.size >= (a.size <= 4 ? 0.5 : 0.62);
+  }
+
+  function coverageReport(substance, output, includeBasis) {
+    return {
+      topic: fieldRetained(substance.topic, output),
+      fact: fieldRetained(substance.fact, output),
+      action: fieldRetained(substance.action, output),
+      deadline: fieldRetained(substance.deadline, output),
+      reason: fieldRetained(substance.reason, output),
+      basis: includeBasis ? fieldRetained(substance.basis, output) : null
+    };
+  }
+
+  function topicRedundant(topic, fact, action) {
+    const t = stripEnd(topic).replace(/(?:處理|確認|修正|安排|內容|事項|進度)$/u, '');
+    if (!t || t.length < 2) return false;
+    const combined = `${stripEnd(fact)} ${stripEnd(action)}`;
+    return combined.includes(t);
+  }
+
+  // Purpose-aware candidate: facts first, then the concrete action, then only the
+  // reason/impact supplied by the user. This deliberately avoids generic praise,
+  // blame, legal conclusions and filler closings.
+  function plannerCandidate(substance, options, style) {
+    const topic = substance.topic || '';
+    const fact = substance.fact || '';
+    const action = substance.action || '';
+    const deadline = substance.deadline || '';
+    const reason = substance.reason || '';
+    const basis = substance.basis || '';
+    const tone = substance.tone || 'directive';
+    const audience = options.audience || 'coworker';
+    const purpose = options.purpose || 'general';
+    const lead = topicRedundant(topic, fact, action) ? '' : topicLead(topic, fact, purpose, audience, style);
+    const factBlock = factSentence(fact, purpose, audience, style, lead);
+    const directFact = fact ? factSentence(fact, purpose, audience, style, '') : '';
+    const actionBlock = actionSentence(action, deadline, tone, audience, style);
+    const integrated = integratedActionReason(action, deadline, reason, tone, audience, style, purpose);
+    const reasonBlock = reasonSentence(reason, style);
+    const basisBlock = options.includeBasis ? basisSentence(basis, style) : '';
+
+    let parts;
+    if (purpose === 'refuse') {
+      // A refusal reads better when the objective constraint is stated first and
+      // the alternative follows; do not turn the boundary into a punitive command.
+      parts = [factBlock || directFact, reasonBlock, actionBlock, basisBlock];
+    } else if (purpose === 'rule') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else if (purpose === 'schedule') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else if (purpose === 'correct') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else if (purpose === 'remind') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else {
+      parts = [factBlock || directFact, integrated || actionBlock, reason && !integrated ? reasonBlock : '', basisBlock];
+    }
+    return postProcess(parts.filter(Boolean).join(''), style, audience);
+  }
+
+  function buildCandidate(substance, options, style, layout) {
+    const topic = substance.topic || '';
+    const fact = substance.fact || '';
+    const action = substance.action || '';
+    const deadline = substance.deadline || '';
+    const reason = substance.reason || '';
+    const basis = substance.basis || '';
+    const tone = substance.tone || 'directive';
+    const audience = options.audience || 'coworker';
+    const purpose = options.purpose || 'general';
+
+    const lead = topicRedundant(topic, fact, action) ? '' : topicLead(topic, fact, purpose, audience, style);
+    const factBlock = factSentence(fact, purpose, audience, style, lead);
+    const actionBlock = actionSentence(action, deadline, tone, audience, style);
+    const reasonBlock = reasonSentence(reason, style);
+    const integratedBlock = integratedActionReason(action, deadline, reason, tone, audience, style, purpose);
+    const shouldUseClosing = Boolean(deadline) && (purpose === 'remind' || purpose === 'schedule') && style !== 'concise';
+    const closing = shouldUseClosing ? chooseClosing(purpose, tone, style, [topic, fact, action, deadline].join('|')) : '';
+    const basisBlock = options.includeBasis ? basisSentence(basis, style) : '';
+
+    let parts = [];
+    switch (layout) {
+      case 'integrated':
+        parts = [factBlock, integratedBlock, basisBlock, closing];
+        break;
+      case 'integrated-no-closing':
+        parts = [factBlock, integratedBlock, basisBlock];
+        break;
+      case 'direct': {
+        const directFact = fact ? factSentence(fact, purpose, audience, style, '') : '';
+        parts = [directFact, integratedBlock, basisBlock, closing];
+        break;
+      }
+      case 'direct-no-closing': {
+        const directFact = fact ? factSentence(fact, purpose, audience, style, '') : '';
+        parts = [directFact, integratedBlock, basisBlock];
+        break;
+      }
+      case 'reason-before-action':
+        parts = [factBlock, reasonBlock, actionBlock, basisBlock, closing];
+        break;
+      case 'action-first': {
+        const standaloneLead = lead
+          ? (/，$/u.test(lead) ? sentence(lead.replace(/，$/u, '')) : lead)
+          : '';
+        parts = [standaloneLead, actionBlock, fact ? factSentence(fact, purpose, audience, style, '') : '', reasonBlock, basisBlock, closing];
+        break;
+      }
+      case 'compact':
+        parts = [factBlock, integratedBlock || actionBlock, basisBlock];
+        break;
+      case 'standard':
+      default:
+        parts = [factBlock, actionBlock, reasonBlock, basisBlock, closing];
+        break;
+    }
+
+    let text = parts.filter(Boolean).join('');
+    text = postProcess(text, style, audience);
+    return text;
+  }
+
+  function postProcess(text, style, audience) {
+    let value = normalize(text)
+      .replace(/。{2,}/g, '。')
+      .replace(/，，+/g, '，')
+      .replace(/。([，；：])/g, '。')
+      .replace(/請請/g, '請')
+      .replace(/麻煩請/g, '麻煩')
+      .replace(/再麻煩您您/g, '再麻煩您')
+      .replace(/前前/u, '前')
+      .replace(/您好，您好，/g, '您好，');
+
+    // 如果服務對象版本沒有任何問候，補一個最短問候即可；不在同事訊息強塞稱謂。
+    if ((audience === 'client' || audience === 'student' || audience === 'public') && style !== 'formal' && value && !value.startsWith('您好')) {
+      value = `您好，${value}`;
+    }
+    return value;
+  }
+
+  function splitSentences(text) {
+    return normalize(text).split(/(?<=[。！？!?])/u).map(x => x.trim()).filter(Boolean);
+  }
+
+  function scoreCandidate(text, style) {
+    if (!text) return -9999;
+    let score = 100;
+    const sentences = splitSentences(text);
+
+    for (const phrase of GENERIC_FORMULAIC) {
+      if (text.includes(phrase)) score -= style === 'formal' ? 4 : 14;
+    }
+    const colonLabels = (text.match(/(?:期限|原因|依據|程序|事項|主題)[:：]/gu) || []).length;
+    score -= colonLabels * 12;
+
+    const pleaseCount = (text.match(/請/gu) || []).length;
+    if (pleaseCount > 2) score -= (pleaseCount - 2) * 8;
+    const troubleCount = (text.match(/麻煩/gu) || []).length;
+    if (troubleCount > 1) score -= (troubleCount - 1) * 6;
+
+    const unique = new Set(sentences.map(s => s.replace(/[。！？!?]/g, '')));
+    if (unique.size < sentences.length) score -= (sentences.length - unique.size) * 18;
+    if (sentences.length > 5) score -= (sentences.length - 5) * 5;
+    if (style === 'concise' && text.length > 180) score -= Math.ceil((text.length - 180) / 15);
+    if (style === 'natural' && text.startsWith('關於')) score -= 5;
+    if (/說明如下[。；：]/u.test(text)) score -= 20;
+    if (/(?:需要要|請請|麻煩請|您您|也版本|也日期|也附件|也資料)/u.test(text)) score -= 35;
+    if (/工作必要性|職務依據[:：]/u.test(text)) score -= 15;
+    if (/相關原因|相關程序/u.test(text)) score -= 12;
+    if (/。請[^。]+。請/u.test(text)) score -= 8;
+    if (/，[，。]|。[,，]/u.test(text)) score -= 15;
+
+    // 自然版若完全沒有「關於／上述／說明如下」等公文套語，給小幅獎勵。
+    if (style === 'natural' && !/(?:上述|說明如下|茲|爰|依既定)/u.test(text)) score += 6;
+    if (style === 'concise' && sentences.length <= 3) score += 5;
+    return score;
+  }
+
+  function stableHash(text) {
+    let hash = 2166136261;
+    for (const ch of String(text || '')) {
+      hash ^= ch.codePointAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return Math.abs(hash >>> 0);
+  }
+
+  function bestOf(candidates, style) {
+    const scored = [...new Set(candidates.filter(Boolean))]
+      .map(text => ({ text, score: scoreCandidate(text, style) }))
+      .sort((a, b) => b.score - a.score || a.text.length - b.text.length);
+    return scored[0] || { text: '', score: -9999 };
+  }
+
+  function safeCorpusPatternCandidates(substance, options = {}, style = 'natural') {
+    // 大型安全模板庫只在前一階段已明確命中安全情境時介入候選生成；
+    // 避免一般手動結構化輸入被大量模板蓋過原本較成熟的語序規則。
+    if (!options.safeCorpusScenarioId) return [];
+    const patterns = SAFE_CORPUS?.stylePatterns?.[style] || [];
+    if (!patterns.length) return [];
+    const topic = stripEnd(substance.topic || '');
+    const fact = stripEnd(style === 'formal' ? formalize(substance.fact || '') : naturalize(substance.fact || ''));
+    const action = stripLeadingAction(style === 'formal' ? formalize(substance.action || '') : naturalize(substance.action || ''));
+    const reason = stripLeadingReason(style === 'formal' ? formalize(substance.reason || '') : naturalize(substance.reason || ''));
+    const deadline = normalizeDeadline(substance.deadline || '', style);
+    if (!fact || !action) return [];
+    if (options.includeBasis && normalize(substance.basis || '')) return [];
+    const factNoPrefix = fact.replace(/^(?:目前|現在|現階段)/u, '');
+    const reasonNoPrefix = reason.replace(/^(?:以利|以便)/u, '');
+    const actionWithDeadline = deadline ? `${style === 'formal' ? '於' : '在'}${deadline}${action}` : action;
+    const values = { topic: topic || '這項工作', fact, fact_no_prefix: factNoPrefix, action: actionWithDeadline, reason: reason || '以利後續作業', reason_no_prefix: reasonNoPrefix || '後續作業順利進行' };
+    const mustKeepTopic = Boolean(topic && !topicRedundant(topic, fact, action));
+    return patterns.filter(pattern => !mustKeepTopic || String(pattern).includes('{topic}')).slice(0, 8).map((pattern, index) => {
+      let text = String(pattern || '').replace(/\{(topic|fact|fact_no_prefix|action|reason|reason_no_prefix)\}/g, (_, key) => values[key] || '');
+      text = text
+        .replace(/請完成完成/g, '請完成')
+        .replace(/請先完成完成/g, '請先完成')
+        .replace(/請依相關規範與權責依/g, '請依相關規範與權責')
+        .replace(/，以避免/g, '，避免')
+        .replace(/，以確保/g, '，以確保')
+        .replace(/。+/g, '。');
+      return postProcess(text, style, options.audience || 'coworker');
+    }).filter(text => Boolean(text) && (style !== 'formal' || /(?:關於|請於)/u.test(text)));
+  }
+
+  function rewriteStructuredMessage(substance, options = {}) {
+    const style = options.rewriteStyle || 'natural';
+    const corePresent = [substance.topic, substance.fact, substance.action, substance.deadline, substance.reason]
+      .some(v => normalize(v));
+    if (!corePresent) {
+      return {
+        text: '', copyable: false,
+        notice: '原始訊息只用於風險檢核，不會被拿來補寫或組成建議版本。請至少填寫工作主題、客觀事實或希望對方完成的行動。',
+        style,
+        qualityScore: 0,
+        variants: {},
+        quality: {},
+        coverage: {},
+        variantCoverage: {}
+      };
+    }
+
+    const styles = ['natural', 'concise', 'formal'];
+    const purpose = options.purpose || 'general';
+    const variants = {};
+    const quality = {};
+    for (const targetStyle of styles) {
+      const naturalDirect = targetStyle === 'natural' && (purpose === 'rule' || purpose === 'refuse') && normalize(substance.fact);
+      const layouts = targetStyle === 'concise'
+        ? ['compact', 'integrated-no-closing', 'standard']
+        : naturalDirect
+          ? ['direct-no-closing', 'direct', 'integrated', 'integrated-no-closing', 'standard', 'reason-before-action', 'action-first']
+          : ['integrated', 'integrated-no-closing', 'standard', 'reason-before-action', 'action-first'];
+      const candidates = [
+        plannerCandidate(substance, options, targetStyle),
+        ...safeCorpusPatternCandidates(substance, options, targetStyle),
+        ...layouts.map(layout => buildCandidate(substance, options, targetStyle, layout))
+      ];
+      const best = bestOf(candidates, targetStyle);
+      variants[targetStyle] = best.text;
+      quality[targetStyle] = best.score;
+    }
+
+    const selected = variants[style] || variants.natural || '';
+    const styleLabel = style === 'formal' ? '正式書面' : style === 'concise' ? '精簡直接' : '自然工作訊息';
+    return {
+      text: selected,
+      copyable: Boolean(selected),
+      notice: options.includeBasis
+        ? `已使用「${styleLabel}」潤稿；只讀取實質工作內容，職務依據依你的設定納入文字，原始訊息不會進入輸出。`
+        : `已使用「${styleLabel}」潤稿；只讀取實質工作內容。職務依據預設只供合理性檢核，不會自動寫進訊息，原始訊息也不會進入輸出。`,
+      style,
+      qualityScore: quality[style] || 0,
+      variants,
+      quality,
+      coverage: coverageReport(substance, selected, Boolean(options.includeBasis)),
+      variantCoverage: Object.fromEntries(Object.entries(variants).map(([key, value]) => [key, coverageReport(substance, value, Boolean(options.includeBasis))]))
+    };
+  }
+
+  return {
+    rewriteStructuredMessage,
+    buildCandidate,
+    scoreCandidate,
+    naturalize,
+    formalize,
+    normalize,
+    plannerCandidate,
+    coverageReport,
+    safeCorpusPatternCandidates,
+    safeCorpusVersion: SAFE_CORPUS.version || 'unknown'
+  };
+});
+
+/* Section 2: raw-message intent extraction engine */
+'use strict';
+
+/*
+ * Raw-message intent extraction engine.
+ * Input: original Traditional Chinese work message.
+ * Output: structured work intent only. Toxic/emotional material is treated as
+ * noise, not as generation material. No cloud service is used.
+ */
+(function initIntentEngine(root, factory) {
+  const api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (root) root.MESSAGE_INTENT_ENGINE = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function factory() {
+  const SAFE_CORPUS = (() => {
+    if (typeof globalThis !== 'undefined' && globalThis.SAFE_MESSAGE_CORPUS_DATA) return globalThis.SAFE_MESSAGE_CORPUS_DATA;
+    if (typeof module !== 'undefined' && module.exports) {
+      try { return require('./safe-message-corpus.js'); } catch (_) { return { scenarios: [], examples: [], version: 'unavailable' }; }
+    }
+    return { scenarios: [], examples: [], version: 'unavailable' };
+  })();
+  const SAFE_SCENARIOS = Array.isArray(SAFE_CORPUS.scenarios) ? SAFE_CORPUS.scenarios : [];
+  const END = /[。！？!?；;\n]+/u;
+  const DEADLINE_PATTERNS = [
+    /(?:今天|今日|明天|明日|後天|本週|這週|下週|週[一二三四五六日天]|星期[一二三四五六日天])(?:上午|中午|下午|晚上|晚間|早上|凌晨|下班)?\s*(?:(?:[一二三四五六七八九十兩]|\d{1,2})\s*[點時](?:\d{1,2}\s*分)?|\d{1,2}[:：]\d{2})?\s*(?:前|以前|之前|內)?/u,
+    /(?:\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}[\/\-]\d{1,2})(?:上午|中午|下午|晚上|晚間|早上)?\s*(?:\d{1,2}(?:[:：]\d{2})?|\d{1,2}\s*[點時])?\s*(?:前|以前|之前|內)?/u,
+    /(?:\d+(?:\.\d+)?\s*(?:分鐘|小時|天|日|工作日|週|星期))\s*(?:內|之內|以前|前)/u,
+    /(?:上午|中午|下午|晚上|晚間|早上|凌晨)\s*(?:[一二三四五六七八九十兩]|\d{1,2})(?:[:：]\d{2}|\s*[點時](?:\d{1,2}\s*分)?)\s*(?:前|以前|之前)?/u,
+    /(?:[一二三四五六七八九十兩]|\d{1,2})(?:[:：]\d{2}|\s*[點時](?:\d{1,2}\s*分)?)\s*(?:前|以前|之前)/u,
+    /(?:今天|今日|明天|明日|本週|這週|下週)?\s*下班前/u
+  ];
+
+  const TOXIC_ONLY = /^(?:你|妳|他|她)?\s*(?:到底|根本|真的|有夠|超級|非常)?\s*(?:白癡|智障|腦殘|廢物|垃圾|王八蛋|混蛋|低能|智商有問題|沒腦|有沒有腦|看不懂人話|聽不懂人話|滾|閉嘴|去死|幹你娘|幹妳娘|操你|綠茶婊|賤人|婊子|垃圾話|廢話)+\s*$/u;
+  const THREAT_TAIL = /(?:不然|否則|再不|要不然|敢不|如果不|做不到就|沒做完就|再給我).*$/u;
+  const POWER_THREAT = /(?:不用來了|不用做了|滾蛋|走人|開除|解僱|扣薪|扣你薪水|考績給你|讓你待不下去|封殺你|黑名單|不排班|砍班|不續約).*$/u;
+  const EMOTION_PREFIX = /^(?:你到底|到底在|你是在|你是有|有沒有搞錯|搞什麼|是在搞什麼|講幾次|要講幾次|我不是說過|我講過幾次|你怎麼又|怎麼還|為什麼又|為什麼還)\s*/u;
+  const POLITENESS_PREFIX = /^(?:麻煩|煩請|拜託|請|務必|給我|現在|立刻|馬上|趕快|趕緊|記得|需要|要)\s*/u;
+
+  const ACTION_RULES = [
+    [/重新?做|全部重做|重做/u, '重新檢查並修正'],
+    [/補齊|補上|補件|補資料/u, '補上缺少的內容'],
+    [/改掉|改好|改完|修好|修正|修改/u, '檢查並修正'],
+    [/回我|回覆我|回覆|回信/u, '回覆目前處理情形'],
+    [/交出來|交給我|繳交|提交/u, '提交完成版本'],
+    [/上傳/u, '上傳更新版本'],
+    [/確認/u, '確認相關內容'],
+    [/處理/u, '完成相關處理'],
+    [/整理/u, '整理相關資料'],
+    [/補充/u, '補充必要內容'],
+    [/說明/u, '說明目前狀況'],
+    [/聯絡/u, '完成必要聯繫'],
+    [/排班/u, '確認排班安排']
+  ];
+
+  const OBJECT_TERMS = [
+    '報告','報表','附件','附件一','附件二','附件三','檔案','文件','資料','簡報','版本','紀錄','會議紀錄','病歷','表單','排班表','排班','名單','清單','合約','契約','企劃','計畫','專案','程式','網站','頁面','功能','需求','測試','結果','作業','工作','信件','訊息','申請','公文','預算','發票','收據','照片','圖片','表格','時程','進度'
+  ];
+
+  const FACT_MARKERS = /(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|未完成|沒完成|未收到|沒收到|尚未|進度|版本|結果|狀況|情況)/u;
+  const ACTION_MARKERS = /(?:請|麻煩|煩請|務必|需要|要|給我|幫我|協助|記得|完成|補|改|修|重做|回覆|回信|上傳|提供|確認|處理|提交|繳交|整理|說明|聯絡|排班|停止|不要再)/u;
+  const REASON_MARKERS = /(?:因為|由於|為了|避免|以免|以利|以便|影響|需要於|需於|供後續|後續要|才能)/u;
+  const EMOTIONAL_META = /(?:到底要講幾次|到底講幾次|要講幾次|講幾次才懂|到底懂不懂|到底會不會|有沒有搞錯|搞什麼|是在搞什麼)/u;
+
+  function normalize(text) {
+    return String(text || '').normalize('NFKC')
+      .replace(/[\u200B\u200C\u2060\uFEFF]/gu, '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/,/g, '，').replace(/;/g, '；').replace(/:/g, '：')
+      .replace(/\?/g, '？').replace(/!/g, '！').trim();
+  }
+
+  function cleanClause(text) {
+    return normalize(text)
+      .replace(/[😡🤬💢🙄😂🤣😒😤💩]+/gu, '')
+      .replace(/\[(?:貼圖|sticker)\]|【貼圖】|\(貼圖\)/giu, '')
+      .replace(THREAT_TAIL, '')
+      .replace(POWER_THREAT, '')
+      .replace(EMOTION_PREFIX, '')
+      .replace(EMOTIONAL_META, '')
+      .replace(/(?:你|妳)?\s*(?:到底)?\s*(?:是|是不是)?\s*(?:白癡|智障|腦殘|廢物|垃圾|低能|沒腦|有沒有腦|看不懂人話|聽不懂人話)(?:嗎|嘛|是不是)?/gu, '')
+      .replace(/^(?:你|妳)\s*(?:到底)?\s*/u, '')
+      .replace(/(?:有沒有腦|會不會做事|看不懂人話|聽不懂人話|搞什麼|是在搞什麼|到底懂不懂|很難嗎|這麼簡單也不會)/gu, '')
+      .replace(/(?:垃圾|廢物|白癡|智障|腦殘|混蛋|王八蛋|賤人|婊子|幹你娘|幹妳娘|操你|滾蛋|去死)/gu, '')
+      .replace(/[~～%％]{2,}/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/^[，。；：、！？\s]+|[，。；：、！？\s]+$/gu, '')
+      .trim();
+  }
+
+  function splitClauses(raw) {
+    return normalize(raw)
+      .split(/[。！？!?；;\n]+|，(?=(?:因為|由於|為了|避免|以免|以利|以便|今天|今日|明天|明日|後天|本週|這週|下週|上午|中午|下午|晚上|晚間|早上|凌晨|下班|現在|目前|請|麻煩|給我|務必|需要|要))/u)
+      .flatMap(part => part.split(/，(?=[^，]{0,28}(?:還沒|尚未|沒有收到|少了|缺了|又錯|不一致|未完成|沒完成))/u))
+      .map(cleanClause).filter(Boolean).filter(x => !TOXIC_ONLY.test(x));
+  }
+
+  function extractDeadline(raw) {
+    const text = normalize(raw);
+    for (const regex of DEADLINE_PATTERNS) {
+      const m = text.match(regex);
+      if (m && m[0].trim()) return m[0].trim().replace(/\s+/g, ' ');
+    }
+    return '';
+  }
+
+  function removeDeadline(text, deadline) {
+    if (!deadline) return text;
+    return normalize(text).replace(deadline, '').replace(/^[，、\s]+|[，、\s]+$/gu, '').trim();
+  }
+
+  function detectObject(text) {
+    const found = OBJECT_TERMS.filter(term => text.includes(term)).sort((a,b) => b.length - a.length);
+    if (!found.length) return '';
+    let obj = found[0];
+    if (obj === '附件') {
+      const m = text.match(/附件\s*[一二三四五六七八九十0-9A-Za-z-]*/u);
+      if (m) obj = m[0].replace(/\s+/g, '');
+    }
+    return obj;
+  }
+
+  function canonicalAction(clause, topic) {
+    let text = removeDeadline(cleanClause(clause), extractDeadline(clause));
+    text = text.replace(POLITENESS_PREFIX, '').replace(/^(?:你|妳|您)\s*/u, '').trim();
+    const actionObject = detectObject(text);
+    const topicObject = detectObject(topic);
+    const object = (actionObject === '版本' && topicObject) ? topicObject : (actionObject || topicObject);
+
+    const hasUpload = /上傳/u.test(text);
+    for (const [regex, replacement] of ACTION_RULES) {
+      if (!regex.test(text)) continue;
+      if (replacement === '補上缺少的內容' && object) return hasUpload ? `補上缺少的${object}後上傳更新版本` : `補上缺少的${object}`;
+      if (replacement === '檢查並修正' && object) return hasUpload ? `檢查並修正${object}後上傳更新版本` : `檢查並修正${object}`;
+      if (replacement === '重新檢查並修正' && object) return hasUpload ? `重新檢查並修正${object}後上傳更新版本` : `重新檢查並修正${object}`;
+      if (replacement === '上傳更新版本' && object && object !== '版本') return `上傳${object}的更新版本`;
+      if (replacement === '提交完成版本' && object) return `提交${object}的完成版本`;
+      if (replacement === '確認相關內容' && object) return `確認${object}內容`;
+      if (replacement === '整理相關資料' && object) return `整理${object}`;
+      return replacement;
+    }
+
+    // 保留可執行核心，但改寫命令語序，避免直接複製原句。
+    text = text
+      .replace(/^把/u, '')
+      .replace(/一下$/u, '')
+      .replace(/給我$/u, '')
+      .replace(/好不好$/u, '')
+      .trim();
+    if (!text) return object ? `確認並處理${object}` : '';
+    if (text.length > 70) text = text.slice(0, 70).replace(/[，；：、\s]+$/u, '');
+    return text;
+  }
+
+  function canonicalFact(clause) {
+    let text = cleanClause(clause)
+      .replace(/^(?:目前)?(?:你|妳|您)\s*/u, '')
+      .replace(/^(?:怎麼|為什麼)\s*/u, '')
+      .trim();
+    if (!text) return '';
+    text = text
+      .replace(/^(.{1,35})又少了(?=，|$)/u, '仍缺少$1')
+      .replace(/^(.{1,35})(?:少了|缺了)(?=，|$)/u, '缺少$1')
+      .replace(/^(?:現在)?(?:還沒|尚未)(?:回覆我|回我|回覆)$/u, '目前尚未收到回覆')
+      .replace(/^(.{1,35})又少了$/u, '目前仍缺少$1')
+      .replace(/^(.{1,35})(?:少了|缺了)$/u, '目前缺少$1')
+      .replace(/^(.{1,35})又錯(?:一堆|很多|了)$/u, '目前$1仍有多處需要修正')
+      .replace(/^(.{1,35})錯(?:一堆|很多)$/u, '目前$1有多處需要修正')
+      .replace(/^(.{1,35})(?:有很多錯|錯誤很多)$/u, '目前$1有多處需要修正')
+      .replace(/^(.{1,35})還沒(?:回覆|回我)$/u, '目前尚未收到回覆')
+      .replace(/^現在還沒(?:回覆|回我)$/u, '目前尚未收到回覆')
+      .replace(/版本日期也跟(.+?)講的不一樣/u, '版本日期與$1確認內容不一致')
+      .replace(/版本日期跟(.+?)講的不一樣/u, '版本日期與$1確認內容不一致')
+      .replace(/還沒/u, '尚未')
+      .replace(/沒有收到/u, '尚未收到')
+      .replace(/亂七八糟/u, '內容需要重新確認')
+      .replace(/做成這樣/u, '版本需要修正');
+    if (!/^(?:目前|現在|仍|尚|已|未|這次|本次)/u.test(text)) text = `目前${text}`;
+    if (text.length > 110) text = text.slice(0, 110).replace(/[，；：、\s]+$/u, '');
+    return text;
+  }
+
+  function canonicalReason(clause) {
+    let text = cleanClause(clause);
+    text = text.replace(/^(?:因為|由於|為了|考量到|考量|主要是因為)\s*/u, '').trim();
+    if (!text) return '';
+    text = text
+      .replace(/主管(.+?)要開會/u, '主管$1有會議安排')
+      .replace(/(.+?)要開會/u, '$1有會議安排');
+    if (/^(?:避免|以免|以利|以便|供)/u.test(text)) return text;
+    if (/影響/u.test(text)) return text;
+    if (/(?:有會議安排|需要使用|要使用|需使用|後續作業|後續處理)/u.test(text)) return text;
+    return `需要${text}`;
+  }
+
+  function inferTopic(clauses, action, fact) {
+    const combined = [fact, action, ...clauses].join(' ');
+    const object = detectObject(combined);
+    if (object) {
+      const mapping = {
+        '排班':'排班安排','排班表':'排班表','報告':'報告','報表':'報表','附件':'附件',
+        '檔案':'檔案','文件':'文件','資料':'資料','簡報':'簡報','版本':'版本內容',
+        '程式':'程式','網站':'網站','功能':'功能','需求':'需求','進度':'工作進度','紀錄':'紀錄'
+      };
+      return mapping[object] || object;
+    }
+    if (/回覆/u.test(combined)) return '回覆進度';
+    return action ? '工作事項' : fact ? '工作狀況' : '';
+  }
+
+  function isMeaningfulAction(clause) {
+    if (/(?:還沒|尚未|沒有|未)(?:收到)?(?:回覆|回信|處理|完成)/u.test(clause) && !/(?:請|麻煩|給我|務必|今天|明天|前|內)/u.test(clause)) return false;
+    return ACTION_MARKERS.test(clause) && !TOXIC_ONLY.test(clause) && !EMOTIONAL_META.test(clause);
+  }
+  function isMeaningfulFact(clause) {
+    return FACT_MARKERS.test(clause) && !REASON_MARKERS.test(clause);
+  }
+
+  function safeActionLooksExecutable(action) {
+    const value = normalize(action);
+    if (!value) return false;
+    if (/(?:滾|離職|開除|解僱|扣薪|扣獎金|扣考績|不續約|黑名單|封殺|閉嘴|去死|做不好|不配合就|否則)/u.test(value)) return false;
+    return /(?:確認|修正|補|回覆|說明|提交|上傳|整理|提供|完成|比對|更新|安排|提出|列出|停止|依|保留|通知|通報|處理|協調|核對|檢查|確認並|改用|移除)/u.test(value);
+  }
+
+  function scenarioEvidence(raw, scenario) {
+    const text = normalize(raw).toLowerCase();
+    const hits = [];
+    let score = 0;
+    for (const keyword of (scenario.keywords || [])) {
+      const k = normalize(keyword).toLowerCase();
+      if (!k || !text.includes(k)) continue;
+      hits.push(keyword);
+      score += Math.min(5, Math.max(1.2, k.length * 0.7));
+    }
+    const topic = normalize(scenario.topic || '').toLowerCase();
+    if (topic && text.includes(topic)) score += 2.5;
+    const issueHits = hits.filter(x => !String(scenario.topic || '').includes(x) && !String(x).includes(String(scenario.topic || '')));
+    if (hits.length >= 2) score += 1.5;
+    if (issueHits.length >= 1) score += 1.5;
+    // 敏感情境（加班、監督、隱私、歧視、人事處分等）即使只有一個明確關鍵詞，
+    // 也應優先帶出防護情境；這些情境本身禁止自動補入高風險命令。
+    if (scenario.sensitive && hits.length >= 1) score += 2.4;
+    return { score, hits, issueHits };
+  }
+
+  function retrieveSafeScenario(raw, current = {}) {
+    const ranked = SAFE_SCENARIOS
+      .map(sc => ({ scenario: sc, ...scenarioEvidence(raw, sc) }))
+      .filter(item => item.score >= 4.2 && item.hits.length)
+      .sort((a,b) => b.score - a.score || b.issueHits.length - a.issueHits.length || String(a.scenario.id).localeCompare(String(b.scenario.id)));
+    const best = ranked[0];
+    if (!best) return null;
+    const sc = best.scenario;
+    const currentAction = normalize(current.action);
+    const currentFact = normalize(current.fact);
+    const canAutofill = sc.safeAutofillAction !== false && best.issueHits.length > 0;
+    const suggestion = {
+      scenarioId: sc.id,
+      category: sc.category,
+      score: Math.round(best.score * 10) / 10,
+      matchedKeywords: best.hits.slice(0, 8),
+      sensitive: Boolean(sc.sensitive),
+      guardrail: sc.guardrail || '',
+      purpose: sc.purpose || 'general',
+      topic: normalize(current.topic) || normalize(sc.topic),
+      fact: currentFact || (best.issueHits.length ? normalize((sc.facts || [])[0]) : ''),
+      action: safeActionLooksExecutable(currentAction) ? currentAction : (canAutofill ? normalize((sc.actions || [])[0]) : ''),
+      reason: normalize(current.reason) || (canAutofill ? normalize((sc.reasons || [])[0]) : '')
+    };
+    return suggestion;
+  }
+
+  function detectAudienceHint(raw) {
+    const text = normalize(raw);
+    const m = text.match(/^\s*(主管|經理|主任|組長|老闆|長官|教授|老師|客戶|家長|同學|同事|各位|您好)[您好\s，：,:]*/u);
+    if (!m) return null;
+    const cue = m[1];
+    if (/^(?:主管|經理|主任|組長|老闆|長官|教授|老師)$/u.test(cue)) return { value: 'supervisor', label: cue, cue };
+    if (/^(?:客戶)$/u.test(cue)) return { value: 'client', label: cue, cue };
+    if (/^(?:家長|同學)$/u.test(cue)) return { value: 'student', label: cue, cue };
+    if (/^(?:同事)$/u.test(cue)) return { value: 'coworker', label: cue, cue };
+    if (/^(?:各位|您好)$/u.test(cue)) return { value: 'public', label: cue, cue };
+    return null;
+  }
+
+  function extract(raw, manual = {}) {
+    const clauses = splitClauses(raw);
+    const deadline = manual.deadline || extractDeadline(raw);
+    const reasonClause = clauses.find(c => REASON_MARKERS.test(c)) || '';
+    const actionClause = clauses.find(c => isMeaningfulAction(c) && c !== reasonClause) || '';
+    const factClause = clauses.find(c => c !== actionClause && c !== reasonClause && isMeaningfulFact(c)) || '';
+
+    const provisionalAction = manual.action || canonicalAction(actionClause, manual.topic || '');
+    const provisionalFact = manual.fact || (factClause ? canonicalFact(removeDeadline(factClause, deadline)) : '');
+    let topic = manual.topic || inferTopic(clauses, provisionalAction, provisionalFact);
+    let action = manual.action || (actionClause ? canonicalAction(actionClause, topic) : provisionalAction) || (topic && clauses.length ? canonicalAction(clauses[clauses.length - 1], topic) : '');
+    let fact = manual.fact || provisionalFact;
+    let reason = manual.reason || (reasonClause ? canonicalReason(removeDeadline(reasonClause, deadline)) : '');
+
+    // 第二語料庫只在原文已有足夠情境證據時補上低風險、可執行的工作內容。
+    // 敏感情境或僅有單一主題詞時不自動補出處分、加班、隱私蒐集等要求。
+    const corpusSuggestion = retrieveSafeScenario(raw, { topic, fact, action, reason });
+    if (corpusSuggestion) {
+      if (!manual.topic && !topic) topic = corpusSuggestion.topic;
+      if (!manual.fact && !fact && corpusSuggestion.fact) fact = corpusSuggestion.fact;
+      if (!manual.action && !safeActionLooksExecutable(action) && corpusSuggestion.action) action = corpusSuggestion.action;
+      if (!manual.reason && !reason && corpusSuggestion.reason) reason = corpusSuggestion.reason;
+      if (!manual.topic && (!topic || topic === '工作事項' || topic === '工作狀況') && corpusSuggestion.topic) topic = corpusSuggestion.topic;
+    }
+
+    if (!manual.action && !safeActionLooksExecutable(action)) action = '';
+
+    const substance = {
+      topic,
+      fact,
+      action,
+      deadline,
+      reason,
+      basis: manual.basis || '',
+      tone: manual.tone || 'directive'
+    };
+
+    const extractedFields = Object.entries(substance)
+      .filter(([k,v]) => k !== 'tone' && !String(manual[k] || '').trim() && String(v || '').trim())
+      .map(([k]) => k);
+    const confidence = action ? (fact || topic ? 'high' : 'medium') : (fact ? 'low' : 'insufficient');
+    const needsInput = !action && !fact;
+    return {
+      substance,
+      clauses,
+      audienceHint: detectAudienceHint(raw),
+      corpusSuggestion,
+      extractedFields,
+      confidence,
+      needsInput,
+      notice: needsInput
+        ? '原始訊息中沒有足夠的可執行工作內容；系統不會從辱罵或威脅自行捏造工作要求。請補充實際要對方處理的事項。'
+        : `已從原始訊息抽取${extractedFields.length ? '並補入' : '確認'}工作意圖；原始羞辱、威脅與情緒性內容不會直接進入輸出。`
+    };
+  }
+
+  function decopySubstance(input = {}) {
+    const s = { ...input };
+    const originalFact = normalize(s.fact);
+    let fact = originalFact
+      .replace(/^目前(.+?)仍有多處需要修正$/u, '目前$1有幾處內容需要調整')
+      .replace(/^目前尚未收到回覆$/u, '目前還沒有收到回覆')
+      .replace(/^仍缺少(.+)$/u, '目前$1尚未齊全')
+      .replace(/^目前缺少(.+)$/u, '目前$1尚未齊全')
+      .replace(/版本日期與(.+?)確認內容不一致/u, '版本日期目前和$1確認的內容有落差');
+    if (fact && fact === originalFact) {
+      fact = /^目前/u.test(fact) ? fact.replace(/^目前/u, '現階段') : `目前確認到：${fact}`;
+    }
+
+    const originalAction = normalize(s.action);
+    let action = originalAction
+      .replace(/^重新檢查並修正(.+)$/u, '完成$1的重新檢查與修正')
+      .replace(/^檢查並修正(.+?)後上傳更新版本$/u, '完成$1檢查與修正後，再上傳更新版本')
+      .replace(/^補上缺少的(.+?)後上傳更新版本$/u, '將$1補齊後，再上傳更新版本')
+      .replace(/^補上缺少的(.+)$/u, '將$1補齊')
+      .replace(/^回覆目前處理情形$/u, '說明目前的處理進度')
+      .replace(/^上傳(.+?)的更新版本$/u, '完成更新後上傳$1')
+      .replace(/^確認(.+?)內容$/u, '完成$1內容確認');
+    if (action && action === originalAction) action = `依目前需求完成「${action}」`;
+
+    const originalReason = normalize(s.reason);
+    let reason = originalReason
+      .replace(/^主管(.+?)有會議安排$/u, '$1另有主管會議時程');
+    if (reason && reason === originalReason && !/^(?:避免|以免|以利|以便|供)/u.test(reason)) reason = `考量${reason}`;
+
+    return { ...s, fact, action, reason };
+  }
+
+  function normalizedForSimilarity(text) {
+    return normalize(text).replace(/[，。；：、！？\s]/gu, '');
+  }
+
+  function copiedSentenceRisk(source, output) {
+    const src = normalizedForSimilarity(source);
+    const sentences = normalize(output).split(/[。！？!?]/u).map(normalizedForSimilarity).filter(x => x.length >= 10);
+    const copied = sentences.filter(s => src.includes(s));
+    return { copied: copied.length > 0, fragments: copied };
+  }
+
+  return { extract, normalize, splitClauses, extractDeadline, canonicalAction, canonicalFact, detectAudienceHint, decopySubstance, copiedSentenceRisk, retrieveSafeScenario, safeActionLooksExecutable, safeCorpusVersion: SAFE_CORPUS.version || 'unknown' };
+});
+
+/* Section 3: Python/local execution bridge */
+'use strict';
+
+(function initPythonBridge(root) {
+  const PYODIDE_VERSION = '0.27.7';
+  const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+  let mode = 'javascript';
+  let pyodide = null;
+  let initPromise = null;
+  let statusCallback = null;
+
+  function report(state, detail) {
+    if (typeof statusCallback === 'function') statusCallback({ state, detail, mode });
+  }
+
+  async function withTimeout(promise, ms) {
+    let id;
+    const timeout = new Promise((_, reject) => { id = setTimeout(() => reject(new Error('timeout')), ms); });
+    try { return await Promise.race([promise, timeout]); }
+    finally { clearTimeout(id); }
+  }
+
+  async function probeLocalPython() {
+    if (typeof location === 'undefined' || !/^https?:$/u.test(location.protocol)) return false;
+    if (!['127.0.0.1', 'localhost'].includes(location.hostname)) return false;
+    try {
+      const response = await withTimeout(fetch('/api/health', { cache: 'no-store' }), 900);
+      if (!response.ok) return false;
+      const data = await response.json();
+      if (data?.engine === 'python') {
+        mode = 'local-python';
+        report('ready', `本機 Python ${data.version || ''}`.trim());
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (root.loadPyodide) return resolve();
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.crossOrigin = 'anonymous';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Pyodide 載入失敗'));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function loadBrowserPython() {
+    if (typeof document === 'undefined' || typeof fetch === 'undefined') return false;
+    if (location.protocol === 'file:') return false;
+    report('loading', '正在載入瀏覽器 Python 執行環境');
+    try {
+      await withTimeout(loadScript(`${PYODIDE_BASE}pyodide.js`), 12000);
+      pyodide = await withTimeout(root.loadPyodide({ indexURL: PYODIDE_BASE }), 20000);
+      const [sourceResp, corpusResp] = await Promise.all([
+        fetch('python/rewrite_engine.py', { cache: 'no-store' }),
+        fetch('safe-message-corpus.js', { cache: 'no-store' })
+      ]);
+      if (!sourceResp.ok) throw new Error('Python 引擎檔案讀取失敗');
+      if (!corpusResp.ok) throw new Error('安全生成語料庫讀取失敗');
+      const source = await sourceResp.text();
+      const corpusSource = await corpusResp.text();
+      const corpusMatch = corpusSource.match(/\/\*__JSON_START__\*\/\s*([\s\S]*?)\s*\/\*__JSON_END__\*\//u);
+      if (!corpusMatch) throw new Error('安全生成語料庫格式錯誤');
+      pyodide.globals.set('safe_corpus_json', corpusMatch[1]);
+      await pyodide.runPythonAsync(source);
+      mode = 'browser-python';
+      report('ready', `瀏覽器 Python / Pyodide ${PYODIDE_VERSION}`);
+      return true;
+    } catch (error) {
+      pyodide = null;
+      mode = 'javascript';
+      report('fallback', 'Python 未載入，已使用離線 JavaScript 引擎');
+      return false;
+    }
+  }
+
+  async function initialize({ onStatus } = {}) {
+    if (onStatus) statusCallback = onStatus;
+    if (initPromise) return initPromise;
+    initPromise = (async () => {
+      report('loading', '偵測可用潤稿引擎');
+      if (await probeLocalPython()) return mode;
+      await loadBrowserPython();
+      if (mode === 'javascript') report('ready', '離線 JavaScript 引擎');
+      return mode;
+    })();
+    return initPromise;
+  }
+
+  function jsProcess(payload) {
+    const intent = root.MESSAGE_INTENT_ENGINE.extract(payload.raw || '', payload.substance || {});
+    const s = intent.substance;
+    const rewrite = root.MESSAGE_REWRITE_ENGINE.rewriteStructuredMessage(s, payload.options || {});
+    const variants = rewrite.variants || {};
+    let selected = rewrite.text || '';
+    const copyRisk = root.MESSAGE_INTENT_ENGINE.copiedSentenceRisk(payload.raw || '', selected);
+    if (copyRisk.copied) {
+      const alternateStyle = (payload.options?.rewriteStyle || 'natural') === 'formal' ? 'natural' : 'formal';
+      selected = variants[alternateStyle] || selected;
+    }
+    return {
+      engine: 'javascript', engineVersion: '1.8.0', extraction: intent, substance: s,
+      ...rewrite, text: intent.needsInput ? '' : selected,
+      copyable: Boolean(!intent.needsInput && selected),
+      notice: intent.needsInput ? intent.notice : `JavaScript 引擎已${intent.extractedFields.length ? '自動抽取並補全' : '依結構化內容'}後重新生成訊息；不會直接複製原句。`
+    };
+  }
+
+  async function process(payload) {
+    if (!initPromise) initialize();
+    // Do not block first use on a slow CDN; local Python gets a short chance,
+    // otherwise the deterministic JS engine handles the request immediately.
+    try { await withTimeout(initPromise, 1400); } catch (_) {}
+    if (mode === 'local-python') {
+      try {
+        const response = await fetch('/api/rewrite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error('local python failed');
+        const result = await response.json();
+        result.engine = 'local-python';
+        return result;
+      } catch (_) {
+        mode = 'javascript';
+        report('fallback', '本機 Python 呼叫失敗，已切換 JavaScript');
+      }
+    }
+    if (mode === 'browser-python' && pyodide) {
+      try {
+        pyodide.globals.set('payload_json', JSON.stringify(payload));
+        const jsonText = await pyodide.runPythonAsync('process_json(payload_json)');
+        const result = JSON.parse(String(jsonText));
+        result.engine = 'browser-python';
+        return result;
+      } catch (_) {
+        mode = 'javascript';
+        report('fallback', '瀏覽器 Python 執行失敗，已切換 JavaScript');
+      }
+    }
+    return jsProcess(payload);
+  }
+
+  root.MESSAGE_ENGINE_BRIDGE = { initialize, process, getMode: () => mode, jsProcess };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* Section 4: application and risk analysis */
 'use strict';
 
 const INTRO_SESSION_KEY = 'rmg:intro-acknowledged';
@@ -14,9 +1296,9 @@ let lastAnalysisResult = null;
 let activeRewriteVariant = 'natural';
 
 const CORPUS = (() => {
-  if (typeof globalThis !== 'undefined' && globalThis.RISK_CORPUS_DATA) return globalThis.RISK_CORPUS_DATA;
-  if (typeof module !== 'undefined' && module.exports) return require('./risk-corpus.js');
-  throw new Error('離線風險語料庫未載入。');
+  if (typeof globalThis !== 'undefined' && globalThis.BULLYING_CORPUS_DATA) return globalThis.BULLYING_CORPUS_DATA;
+  if (typeof module !== 'undefined' && module.exports) return require('./bullying-corpus.js');
+  throw new Error('離線霸凌／高風險主語料庫未載入。');
 })();
 
 const REWRITE_ENGINE = (() => {
@@ -25,12 +1307,25 @@ const REWRITE_ENGINE = (() => {
   throw new Error('離線潤稿引擎未載入。');
 })();
 
-const EXPERT_CORPUS = (() => {
-  if (typeof globalThis !== 'undefined' && globalThis.EXPERT_RISK_CORPUS) return globalThis.EXPERT_RISK_CORPUS;
-  if (typeof module !== 'undefined' && module.exports) return require('./expert-corpus.js');
-  return { entries: [], entryCount: 0, version: 'unavailable' };
+const INTENT_ENGINE = (() => {
+  if (typeof globalThis !== 'undefined' && globalThis.MESSAGE_INTENT_ENGINE) return globalThis.MESSAGE_INTENT_ENGINE;
+  if (typeof module !== 'undefined' && module.exports) return require('./intent-engine.js');
+  return null;
 })();
-const EXPERT_ENTRIES = EXPERT_CORPUS.entries || [];
+
+const ENGINE_BRIDGE = (typeof globalThis !== 'undefined' && globalThis.MESSAGE_ENGINE_BRIDGE)
+  ? globalThis.MESSAGE_ENGINE_BRIDGE
+  : null;
+
+const EXPERT_ENTRIES = Array.isArray(CORPUS.expertEntries) ? CORPUS.expertEntries : [];
+const EXPERT_CORPUS = { version: CORPUS.version, entryCount: EXPERT_ENTRIES.length, entries: EXPERT_ENTRIES };
+const SAFE_MESSAGE_CORPUS = (() => {
+  if (typeof globalThis !== 'undefined' && globalThis.SAFE_MESSAGE_CORPUS_DATA) return globalThis.SAFE_MESSAGE_CORPUS_DATA;
+  if (typeof module !== 'undefined' && module.exports) {
+    try { return require('./safe-message-corpus.js'); } catch (_) { return { scenarios: [], examples: [], version: 'unavailable' }; }
+  }
+  return { scenarios: [], examples: [], version: 'unavailable' };
+})();
 
 const SIMPLIFIED_TO_TRADITIONAL = new Map(Object.entries({
   '爱':'愛','单':'單','这':'這','个':'個','们':'們','说':'說','话':'話','来':'來','时':'時','会':'會','发':'發','后':'後','里':'裡','还':'還','没':'沒','让':'讓','从':'從','对':'對','过':'過','给':'給','开':'開','关':'關','门':'門','间':'間','应':'應','实':'實','当':'當','见':'見','观':'觀','学':'學','长':'長','车':'車','书':'書','电':'電','网':'網','东':'東','乐':'樂','风':'風','业':'業','产':'產','员':'員','职':'職','权':'權','无':'無','与':'與','体':'體','国':'國','进':'進','运':'運','马':'馬','气':'氣','万':'萬','众':'眾','优':'優','伤':'傷','么':'麼','听':'聽','边':'邊','务':'務','办':'辦','动':'動','势':'勢','试':'試','该':'該','岁':'歲','历':'歷','归':'歸','怀':'懷','复':'復','达':'達','认':'認','现':'現','数':'數','线':'線','条':'條','别':'別','资':'資','调':'調','显':'顯','销':'銷','录':'錄','验':'驗','质':'質','软':'軟','围':'圍','构':'構','简':'簡','译':'譯','览':'覽','户':'戶','页':'頁','侧':'側','层':'層','项':'項','处':'處','觉':'覺','虽':'雖','医':'醫','护':'護','湾':'灣','华':'華','协':'協','属':'屬','级':'級','导':'導','诉':'訴','疗':'療','举':'舉','奖':'獎','罚':'罰','证':'證','离':'離','仅':'僅','亲':'親','爷':'爺','妇':'婦','恶':'惡','晒':'曬','轻':'輕','词':'詞','愿':'願','龄':'齡','师':'師','临':'臨','区':'區','劳':'勞','将':'將','备':'備','带':'帶','审':'審','续':'續','记':'記','样':'樣','档':'檔','设':'設','签':'簽','报':'報','预':'預','统':'統','扩':'擴','组':'組','监':'監','严':'嚴','击':'擊','坚':'堅','卖':'賣','买':'買','张':'張','欢':'歡','坏':'壞','败':'敗','拥':'擁','赔':'賠','术':'術','艺':'藝','诊':'診','药':'藥','类':'類','释':'釋','争':'爭','执':'執','据':'據','窥':'窺','终':'終','够':'夠','转':'轉','图':'圖','问':'問','规':'規','训':'訓','险':'險','专':'專','写':'寫','滚':'滾','赶':'趕'
@@ -274,6 +1569,16 @@ function getLegalNotes(keys) {
     .filter(Boolean);
 }
 
+function safeScenarioIdsForCategory(category = '') {
+  const map = CORPUS.riskToSafeScenarioMap || {};
+  const label = String(category || '');
+  const ids = [];
+  for (const [key, values] of Object.entries(map)) {
+    if (label.includes(key)) ids.push(...(Array.isArray(values) ? values : []));
+  }
+  return [...new Set(ids)].slice(0, 8);
+}
+
 function getSourceNotes(keys) {
   return (keys || [])
     .map(key => SOURCE_CATALOG[key] ? ({ id: key, ...SOURCE_CATALOG[key] }) : null)
@@ -466,6 +1771,7 @@ function scanExpertCorpus(text, source = '原始訊息') {
       safeAction: entry.safeAction,
       legalNotes: getLegalNotes(entry.legal),
       sourceNotes: [],
+      safeScenarioIds: safeScenarioIdsForCategory(entry.domain),
       matchedExample: entry.text,
       expertSimilarity: Math.round(best.similarity * 100),
       expertDomain: entry.domain
@@ -500,6 +1806,7 @@ function scanCorpus(text, options, source = '原始訊息') {
       safeAction: entry.safeAction,
       legalNotes: getLegalNotes(entry.legal),
       sourceNotes: getSourceNotes(entry.sources),
+      safeScenarioIds: safeScenarioIdsForCategory(entry.category),
       workContentRisk: Boolean(entry.workContentRisk),
       contextSensitive: Boolean(entry.contextSensitive)
     });
@@ -523,6 +1830,7 @@ function scanCorpus(text, options, source = '原始訊息') {
       safeAction: entry.safeAction,
       legalNotes: getLegalNotes(entry.legal),
       sourceNotes: getSourceNotes(entry.sources),
+      safeScenarioIds: safeScenarioIdsForCategory(entry.category),
       workContentRisk: Boolean(entry.workContentRisk),
       contextSensitive: Boolean(entry.contextSensitive)
     });
@@ -536,7 +1844,7 @@ function scanCorpus(text, options, source = '原始訊息') {
     findings.push({
       type: 'tone', source, corpusId: rule.id, title: rule.category, severity: rule.severity,
       fragment: match[0], canonicalPhrase: '語言學結構規則', reason: rule.warning, safeAction: rule.safeAction,
-      legalNotes: getLegalNotes(rule.legal), sourceNotes: [], linguisticRule: true
+      legalNotes: getLegalNotes(rule.legal), sourceNotes: [], safeScenarioIds: safeScenarioIdsForCategory(rule.category), linguisticRule: true
     });
   }
 
@@ -829,7 +2137,9 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     recordableTone: options.recordableTone !== false,
     clipboardImageDetected: Boolean(options.clipboardImageDetected),
     rewriteStyle: options.rewriteStyle || 'natural',
-    includeBasis: Boolean(options.includeBasis)
+    includeBasis: Boolean(options.includeBasis),
+    precomputedRewrite: options.precomputedRewrite || null,
+    sourceForCopyGuard: options.sourceForCopyGuard || raw || ''
   };
 
   const findings = [];
@@ -885,7 +2195,17 @@ function analyzeMessage(raw, substance = {}, options = {}) {
   }
 
   const sanitized = sanitizeSubstance(substance, normalizedOptions);
-  const composed = composeSafeMessage(sanitized.substance, normalizedOptions);
+  const composed = normalizedOptions.precomputedRewrite
+    ? {
+        ...normalizedOptions.precomputedRewrite,
+        coverage: normalizedOptions.precomputedRewrite.coverage && Object.keys(normalizedOptions.precomputedRewrite.coverage).length
+          ? normalizedOptions.precomputedRewrite.coverage
+          : REWRITE_ENGINE.coverageReport(sanitized.substance, normalizedOptions.precomputedRewrite.text || '', Boolean(normalizedOptions.includeBasis)),
+        variantCoverage: normalizedOptions.precomputedRewrite.variantCoverage && Object.keys(normalizedOptions.precomputedRewrite.variantCoverage).length
+          ? normalizedOptions.precomputedRewrite.variantCoverage
+          : Object.fromEntries(Object.entries(normalizedOptions.precomputedRewrite.variants || {}).map(([key, value]) => [key, REWRITE_ENGINE.coverageReport(sanitized.substance, value, Boolean(normalizedOptions.includeBasis))]))
+      }
+    : composeSafeMessage(sanitized.substance, normalizedOptions);
 
   // 工作內容本身若出現高風險，不應用「禮貌改寫」漂白成可執行命令。
   // 必須先修正工作要求或補足必要的職務依據。
@@ -893,6 +2213,53 @@ function analyzeMessage(raw, substance = {}, options = {}) {
   let copyable = composed.copyable;
   let outputNotice = composed.notice;
   let residualCount = 0;
+  let effectiveRewriteStyle = composed.style || normalizedOptions.rewriteStyle || 'natural';
+  const safeVariants = { ...(composed.variants || {}) };
+
+  // 三種候選版本都必須各自通過「原句複製＋高風險＋個資」防漏，避免切換分頁後繞過檢核。
+  if (Object.keys(safeVariants).length) {
+    const professionalContext = hasProfessionalBasis(substance.basis || '');
+    for (const [variantStyle, variantText] of Object.entries(safeVariants)) {
+      if (!variantText) continue;
+      const copyRisk = INTENT_ENGINE && normalizedOptions.sourceForCopyGuard
+        ? INTENT_ENGINE.copiedSentenceRisk(normalizedOptions.sourceForCopyGuard, variantText)
+        : { copied: false };
+      let checkedText = variantText;
+      if (copyRisk.copied && INTENT_ENGINE?.decopySubstance) {
+        const decopied = INTENT_ENGINE.decopySubstance(sanitized.substance);
+        const regenerated = REWRITE_ENGINE.rewriteStructuredMessage(decopied, { ...normalizedOptions, rewriteStyle: variantStyle });
+        if (regenerated?.text && !INTENT_ENGINE.copiedSentenceRisk(normalizedOptions.sourceForCopyGuard, regenerated.text).copied) {
+          checkedText = regenerated.text;
+        }
+      }
+      const finalCopyRisk = INTENT_ENGINE && normalizedOptions.sourceForCopyGuard
+        ? INTENT_ENGINE.copiedSentenceRisk(normalizedOptions.sourceForCopyGuard, checkedText)
+        : { copied: false };
+      const variantCorpus = scanCorpus(checkedText, normalizedOptions, `建議版本防漏-${variantStyle}`);
+      const severeVariant = variantCorpus.findings.filter(item =>
+        item.severity !== 'info' && !(professionalContext && item.contextSensitive)
+      );
+      const variantPii = normalizedOptions.maskPii ? [] : scanPii(checkedText, `建議版本防漏-${variantStyle}`).findings.filter(item => item.severity === 'severe');
+      if (finalCopyRisk.copied || severeVariant.length || variantPii.length) {
+        safeVariants[variantStyle] = '';
+      } else {
+        safeVariants[variantStyle] = checkedText;
+      }
+    }
+    const requestedStyle = composed.style || normalizedOptions.rewriteStyle || 'natural';
+    if (!safeVariants[requestedStyle]) {
+      const fallback = ['natural', 'concise', 'formal'].find(key => safeVariants[key]);
+      if (fallback) {
+        safeText = safeVariants[fallback];
+        effectiveRewriteStyle = fallback;
+        outputNotice = `${composed.notice || ''} 原選取版本未通過完整防漏，已改用其他重新生成版本。`.trim();
+      }
+    } else {
+      safeText = safeVariants[requestedStyle];
+      effectiveRewriteStyle = requestedStyle;
+    }
+    copyable = Boolean(safeText && composed.copyable);
+  }
 
   if (workContext.blocking.length) {
     const labels = [...new Set(workContext.blocking.map(item => item.title))].slice(0, 3).join('、');
@@ -901,6 +2268,7 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     outputNotice = `實質工作內容本身出現「${labels}」風險，系統不會把可能不合理的要求包裝成較禮貌的命令。請先修正工作內容，或在適用規則允許時補充具體職務依據。`;
     residualCount += workContext.blocking.length;
   }
+
 
   if (safeText && copyable) {
     const residualCorpus = scanCorpus(safeText, normalizedOptions, '建議版本防漏');
@@ -923,9 +2291,15 @@ function analyzeMessage(raw, substance = {}, options = {}) {
         safeAction: '請調整「實質內容」欄位後重新產生。',
         legalNotes: []
       });
-      safeText = '';
-      copyable = false;
-      outputNotice = '建議版本因防漏檢核未通過而被阻止。請修改實質內容欄位後重新產生。';
+      const selectedStyle = composed.style || normalizedOptions.rewriteStyle || 'natural';
+      safeVariants[selectedStyle] = '';
+      const fallbackStyle = ['natural', 'concise', 'formal'].find(key => safeVariants[key]);
+      safeText = fallbackStyle ? safeVariants[fallbackStyle] : '';
+      if (fallbackStyle) effectiveRewriteStyle = fallbackStyle;
+      copyable = Boolean(safeText);
+      outputNotice = fallbackStyle
+        ? '原選取版本因防漏檢核未通過，已切換到另一個通過檢核的重新生成版本。'
+        : '所有建議版本均因防漏檢核未通過而被阻止。請修改實質內容欄位後重新產生。';
       score += 30;
     }
   }
@@ -971,9 +2345,9 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     workRiskCount,
     corpusHitCount,
     blockedCount: sanitized.blocked + residualCount,
-    rewriteStyle: composed.style || normalizedOptions.rewriteStyle,
+    rewriteStyle: effectiveRewriteStyle,
     rewriteQualityScore: composed.qualityScore || 0,
-    rewriteVariants: composed.variants || {},
+    rewriteVariants: safeVariants,
     rewriteCoverage: composed.coverage || {},
     rewriteVariantCoverage: composed.variantCoverage || {},
     corpusVersion: CORPUS.version,
@@ -981,7 +2355,11 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     corpusPatternCount: PATTERN_ENTRIES.length,
     corpusContextCount: CONTEXT_ENTRIES.length,
     corpusSourceCount: Object.keys(SOURCE_CATALOG).length,
-    expertCorpusCount: EXPERT_ENTRIES.length
+    expertCorpusCount: EXPERT_ENTRIES.length,
+    generatedRiskPhraseCount: Number(CORPUS.generatedPhraseCount || 0),
+    safeScenarioCount: Number(SAFE_MESSAGE_CORPUS.scenarioCount || 0),
+    safeTemplateCount: Number(SAFE_MESSAGE_CORPUS.exampleCount || 0),
+    safeCorpusVersion: SAFE_MESSAGE_CORPUS.version || 'unknown'
   };
 }
 
@@ -997,11 +2375,11 @@ function readSubstanceFromForm() {
   };
 }
 
-function handleAnalyze() {
+async function handleAnalyze() {
   const raw = $('sourceText').value.trim();
-  const substance = readSubstanceFromForm();
+  const manualSubstance = readSubstanceFromForm();
 
-  if (!raw && ![substance.topic, substance.fact, substance.action, substance.deadline, substance.reason, substance.basis].some(value => String(value || '').trim())) {
+  if (!raw && ![manualSubstance.topic, manualSubstance.fact, manualSubstance.action, manualSubstance.deadline, manualSubstance.reason, manualSubstance.basis].some(value => String(value || '').trim())) {
     $('inputError').textContent = '請先貼上欲檢核的原始訊息，或填寫要傳達的實質工作內容。';
     $('inputError').hidden = false;
     $('sourceText').focus();
@@ -1009,6 +2387,8 @@ function handleAnalyze() {
   }
 
   $('inputError').hidden = true;
+  $('analyzeButton').disabled = true;
+  $('analyzeButton').textContent = '正在抽取工作意圖並潤稿…';
 
   const options = {
     audience: $('audienceSelect').value,
@@ -1021,8 +2401,101 @@ function handleAnalyze() {
     includeBasis: $('includeBasisOption').checked
   };
 
-  const result = analyzeMessage(raw, substance, options);
-  renderResult(result);
+  let substance = manualSubstance;
+  let precomputedRewrite = null;
+  let extraction = null;
+  let engineLabel = 'JavaScript';
+
+  try {
+    if (raw && $('autoExtractOption')?.checked) {
+      let processed;
+      if (ENGINE_BRIDGE) {
+        processed = await ENGINE_BRIDGE.process({ raw, substance: manualSubstance, options });
+      } else if (INTENT_ENGINE) {
+        extraction = INTENT_ENGINE.extract(raw, manualSubstance);
+        substance = extraction.substance;
+        processed = { ...composeSafeMessage(substance, options), substance, extraction, engine: 'javascript' };
+      }
+
+      if (processed) {
+        substance = processed.substance || substance;
+        extraction = processed.extraction || extraction;
+        engineLabel = processed.engine === 'local-python' || processed.engine === 'python'
+          ? '本機 Python'
+          : processed.engine === 'browser-python'
+            ? '瀏覽器 Python'
+            : processed.engine === 'javascript' ? 'JavaScript' : String(processed.engine || 'JavaScript');
+        applyExtractedSubstance(substance, manualSubstance, extraction);
+
+        // 第二階段只把已抽取且經本機風險／個資清理後的結構化內容交給潤稿器。
+        // Python/JS 都不直接拿原始句子當生成材料。
+        const rewriteSubstance = sanitizeSubstance(substance, options).substance;
+        const rewriteOptions = {
+          ...options,
+          safeCorpusScenarioId: extraction?.corpusSuggestion?.scenarioId || ''
+        };
+        let rewritten = processed;
+        if (ENGINE_BRIDGE) {
+          rewritten = await ENGINE_BRIDGE.process({ raw: '', substance: rewriteSubstance, options: rewriteOptions });
+        } else {
+          rewritten = { ...composeSafeMessage(rewriteSubstance, rewriteOptions), engine: 'javascript' };
+        }
+        precomputedRewrite = {
+          text: rewritten.text || '', copyable: Boolean(rewritten.copyable), notice: rewritten.notice || processed.notice || '',
+          style: rewritten.style || options.rewriteStyle, qualityScore: rewritten.qualityScore || 0,
+          variants: rewritten.variants || {}, quality: rewritten.quality || {},
+          coverage: rewritten.coverage || {}, variantCoverage: rewritten.variantCoverage || {}
+        };
+      }
+    }
+
+    const result = analyzeMessage(raw, substance, {
+      ...options,
+      precomputedRewrite,
+      sourceForCopyGuard: raw
+    });
+    result.extraction = extraction;
+    result.engineLabel = engineLabel;
+    renderExtractionStatus(extraction, engineLabel);
+    renderResult(result);
+  } catch (error) {
+    console.error(error);
+    $('inputError').textContent = `潤稿引擎執行失敗：${error?.message || error}。請重新整理頁面後再試。`;
+    $('inputError').hidden = false;
+  } finally {
+    $('analyzeButton').disabled = false;
+    $('analyzeButton').textContent = '檢核並產生可複製版本';
+  }
+}
+
+function applyExtractedSubstance(substance, originalManual, extraction) {
+  const fieldMap = {
+    topic: 'topicText', fact: 'factText', action: 'actionText', deadline: 'deadlineText', reason: 'reasonText', basis: 'basisText'
+  };
+  for (const [key, id] of Object.entries(fieldMap)) {
+    if (!String(originalManual[key] || '').trim() && String(substance[key] || '').trim()) {
+      $(id).value = substance[key];
+    }
+  }
+  if (extraction?.needsInput) $('extractionStatus').dataset.confidence = 'insufficient';
+}
+
+function renderExtractionStatus(extraction, engineLabel) {
+  const target = $('extractionStatus');
+  if (!target) return;
+  if (!extraction) {
+    target.textContent = `本次未啟用自動抽取；使用 ${engineLabel} 依目前欄位潤稿。`;
+    target.dataset.confidence = 'manual';
+    return;
+  }
+  const labels = { topic: '工作主題', fact: '客觀事實', action: '要求行動', deadline: '期限', reason: '原因／影響', basis: '職務依據' };
+  const fields = (extraction.extractedFields || []).map(key => labels[key] || key);
+  const audienceLabels = { coworker: '同事或部屬', supervisor: '主管', client: '案家、服務對象或家屬', student: '學生、家長或受訓者', public: '一般民眾或外部合作對象' };
+  const audienceHint = extraction.audienceHint?.value ? `；對象線索：${audienceLabels[extraction.audienceHint.value] || extraction.audienceHint.label || extraction.audienceHint.value}` : '';
+  target.dataset.confidence = extraction.confidence || 'unknown';
+  target.textContent = extraction.needsInput
+    ? `${engineLabel}：原始訊息沒有足夠的可執行工作內容，未從辱罵或威脅自行捏造要求。請補充實際工作事項。${audienceHint}`
+    : `${engineLabel}：已抽取${fields.length ? `「${fields.join('、')}」` : '工作意圖'}${audienceHint}；可信度 ${extraction.confidence || '未標示'}。你可直接修正欄位後再次潤稿。`;
 }
 
 function renderResult(result) {
@@ -1237,10 +2710,28 @@ function initialize() {
   bindEvents();
   updateCharCount();
   renderCorpusStats();
+  initializeRewriteBridge();
 
   if (safeSessionGet(INTRO_SESSION_KEY) === '1') {
     enterApplication(false);
   }
+}
+
+function initializeRewriteBridge() {
+  const status = $('engineStatus');
+  if (!ENGINE_BRIDGE) {
+    if (status) status.textContent = '離線 JavaScript';
+    return;
+  }
+  ENGINE_BRIDGE.initialize({
+    onStatus(info) {
+      if (!status) return;
+      status.textContent = info.detail || info.state || 'JavaScript';
+      status.classList.toggle('engine-ready', info.state === 'ready');
+    }
+  }).catch(() => {
+    if (status) status.textContent = '離線 JavaScript';
+  });
 }
 
 function bindEvents() {
@@ -1265,7 +2756,7 @@ function bindEvents() {
 }
 
 function renderCorpusStats() {
-  const text = `${PHRASE_ENTRIES.length} 筆高風險詞彙＋${EXPERT_ENTRIES.length} 筆完整案例＋${PATTERN_ENTRIES.length} 組語句結構＋${CONTEXT_ENTRIES.length} 組工作內容規則＋${Object.keys(SOURCE_CATALOG).length} 組來源`;
+  const text = `${PHRASE_ENTRIES.length} 筆高風險詞彙（含 ${Number(CORPUS.generatedPhraseCount || 0)} 筆生成變體）＋${EXPERT_ENTRIES.length} 筆完整案例＋${PATTERN_ENTRIES.length} 組語句結構＋${CONTEXT_ENTRIES.length} 組工作內容規則；安全生成庫另含 ${Number(SAFE_MESSAGE_CORPUS.scenarioCount || 0)} 種情境與 ${Number(SAFE_MESSAGE_CORPUS.exampleCount || 0)} 筆三風格模板`;
   if ($('corpusStats')) $('corpusStats').textContent = text;
   if ($('corpusVersion')) $('corpusVersion').textContent = CORPUS.version;
   if ($('privacyCorpusStats')) $('privacyCorpusStats').textContent = text;
@@ -1306,13 +2797,15 @@ function loadExample() {
   $('toneSelect').value = 'directive';
   $('rewriteStyleSelect').value = 'natural';
   $('includeBasisOption').checked = false;
-  $('sourceText').value = '晚上要不要~~~親親\\n口交\\n綠茶婊\\n啪啪啪啦%％%％%%\\n要%%%嗎?胸好大。';
-  $('topicText').value = '昨日交辦資料的版本與期限';
-  $('factText').value = '目前收到的檔案仍缺少附件二，且版本日期與會議確認內容不一致';
-  $('actionText').value = '重新確認附件二並上傳正確版本';
-  $('deadlineText').value = '今天下午 5 時前';
-  $('reasonText').value = '需於明日上午會議前完成彙整，避免後續使用錯誤版本';
-  $('basisText').value = '本事項屬既定專案工作與會議前置作業';
+  if ($('autoExtractOption')) $('autoExtractOption').checked = true;
+  $('sourceText').value = '你到底有沒有腦？附件二又少了，版本日期也跟昨天會議講的不一樣。今天下午 5 時前給我補齊、上傳正確版本，不然你就不用來了。';
+  $('topicText').value = '';
+  $('factText').value = '';
+  $('actionText').value = '';
+  $('deadlineText').value = '';
+  $('reasonText').value = '';
+  $('basisText').value = '';
+  if ($('extractionStatus')) $('extractionStatus').textContent = '示例已載入；按下檢核後會自動抽取工作意圖。';
   updateCharCount();
   $('sourceText').focus();
 }
@@ -1331,6 +2824,8 @@ function clearAll() {
   $('copyButton').disabled = false;
   $('rewriteStyleSelect').value = 'natural';
   $('includeBasisOption').checked = false;
+  if ($('autoExtractOption')) $('autoExtractOption').checked = true;
+  if ($('extractionStatus')) { $('extractionStatus').textContent = '尚未抽取。'; $('extractionStatus').dataset.confidence = ''; }
   clipboardImageDetected = false;
   $('pasteNotice').hidden = true;
   updateCharCount();
@@ -1389,6 +2884,7 @@ if (typeof module !== 'undefined' && module.exports) {
     cleanText,
     normalizeText,
     REWRITE_ENGINE,
+    INTENT_ENGINE,
     CORPUS,
     EXPERT_CORPUS
   };
