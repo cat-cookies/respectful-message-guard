@@ -1,0 +1,43 @@
+{
+  "project": "respectful-message-guard",
+  "version": "1.6.0",
+  "generated": "2026-08-07",
+  "traditionalChinese": true,
+  "runtime": {
+    "phraseEntries": 1871,
+    "expertCaseEntries": 1349,
+    "expertSources": [
+      {
+        "file": "貼上的 Markdown (1)(4).md",
+        "entries": 600,
+        "sha256": "06e796ec611d49c14b19f6f0fdc7cd30bea68e22b7f9b5074d6962897b51120b",
+        "bytes": 40490
+      },
+      {
+        "file": "貼上的 Markdown (2).md",
+        "entries": 449,
+        "sha256": "a01c64dba1349104ece450ac3fb172ff063c8d7e29ef142f4b9139ea7bc4bd74",
+        "bytes": 36136
+      },
+      {
+        "file": "貼上的 Markdown (3).md",
+        "entries": 300,
+        "sha256": "cd2794d5ea987cae327165d4c7f5aa9c05af569fb06ec8ba1c6dd1cfebf48dfe",
+        "bytes": 38635
+      }
+    ],
+    "expertDomains": {
+      "人格貶低、羞辱與情緒暴力": 295,
+      "職涯、人身、經濟威脅與惡意逼退": 68,
+      "職權刁難、不合理工作與資源阻礙": 179,
+      "冷暴力、排擠、造謠與數位騷擾": 517,
+      "隱私侵害、過度監控與跟蹤": 14,
+      "性騷擾、性別歧視與身體界線": 68,
+      "受保障身分與弱勢群體歧視": 84,
+      "煤氣燈、假面指導與心理操控": 40,
+      "其他職場不法侵害風險": 84
+    },
+    "similarity": "local character 2-gram / 3-gram overlap with containment and thresholding",
+    "networkRequired": false
+  }
+}

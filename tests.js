@@ -452,3 +452,98 @@ const scheduleNaturalFlow = analyzeMessage('', {
 assert(/再麻煩您確認這個時段是否方便，也方便後續安排訪視人員。/u.test(scheduleNaturalFlow.safeText), '服務排程自然版未形成完整連續語意');
 
 console.log('v1.5 natural-language regression tests passed.');
+
+// 32. v1.6 使用者實際案例：多種人格羞辱、動物化、驅逐與薪資威脅不得再出現 0 命中。
+const abusiveManagerMessage = '你是白癡嗎？連這點小事都做不好。豬都比你會做。簡直是公司的累贅。你是全公司最爛的人。看到你就火大，滾出去。你是不是不想要薪水了？';
+const abusiveScan = analyzeMessage(abusiveManagerMessage, {
+  topic: '居家照服員排班',
+  fact: '目前排班未依既定行政規則完成確認',
+  action: '由熟悉排班規則的人員重新檢查並調整',
+  deadline: '',
+  reason: '避免排班錯誤造成後續營運損失',
+  basis: '排班屬既定行政作業',
+  tone: 'directive'
+}, { ...baseOptions, purpose: 'correct', rewriteStyle: 'natural' });
+assert(abusiveScan.level === 'high', '明顯多重霸凌語句未判為高風險');
+assert(abusiveScan.score >= 80, '明顯多重霸凌語句風險分數過低');
+for (const id of ['LING-PERSON-COGNITION', 'LING-PERSON-ANIMAL', 'LING-PERSON-WORTH', 'LING-ANGER-EXPEL', 'LING-THREAT-PAY']) {
+  assert(abusiveScan.findings.some(item => item.corpusId === id), `使用者案例漏抓核心語言學規則：${id}`);
+}
+assert(abusiveScan.corpusHitCount >= 7, '完整案例相似語料未對使用者案例提供足夠補強');
+assert(!abusiveScan.safeText.includes('白癡') && !abusiveScan.safeText.includes('豬都比你'), '原始霸凌語句流入建議版本');
+
+// 33. 1349 筆完整案例語料必須真正載入，不是只把資料檔放進 ZIP。
+assert(Array.isArray(require('./expert-corpus.js').entries), '完整案例語料模組未正確匯出');
+assert(require('./expert-corpus.js').entries.length === 1349, '完整案例去重後筆數應為 1349');
+const expertIds = new Set(require('./expert-corpus.js').entries.map(item => item.id));
+assert(expertIds.size === 1349, '完整案例語料代碼有重複');
+
+// 34. 煤氣燈、假面指導、集體孤立、權勢交換性騷擾、懷孕歧視應各有獨立辨識能力。
+const linguisticCases = [
+  ['我是為你好才罵你，你不要這麼玻璃心。', ['LING-GASLIGHT', 'LING-PSEUDO-COACH']],
+  ['你們誰敢幫他，就跟他一起滾蛋。', ['LING-EXCLUSION']],
+  ['今晚陪我單獨吃飯，下個月升遷名單就有你。', ['LING-SEX-EXCHANGE']],
+  ['你一懷孕就造成團隊負擔，產假回來位置也沒了。', ['LING-PREGNANCY']],
+  ['把你的私人手機交出來，我要看聊天紀錄。', ['LING-MICROMANAGE', 'LING-PRIVACY']]
+];
+for (const [text, expectedIds] of linguisticCases) {
+  const result = scanCorpus(text, baseOptions, '測試');
+  for (const id of expectedIds) assert(result.findings.some(item => item.corpusId === id), `語意類型未命中 ${id}：${text}`);
+}
+
+// 35. 一般、合理、可核對的工作要求不能因「期限」或「修正」本身被誤判成霸凌。
+for (const text of [
+  '請在今天下午五點前提交兩頁會議摘要。',
+  '這份報告有兩處數字與原始資料不一致，請重新確認。',
+  '如果今天無法完成，請在下班前告知預計完成時間。',
+  '請依排班規則確認下週值班時段。'
+]) {
+  const result = scanCorpus(text, baseOptions, '正常工作訊息');
+  assert(result.score === 0, `合理工作訊息被誤判：${text}`);
+}
+
+// 36. 不合理工作內容本身要攔截，不能只把語氣變客氣。
+const unsafeWork = analyzeMessage('', {
+  topic: '部門管理',
+  fact: '主管希望加強管理',
+  action: '要求員工每十五分鐘回報進度並交出私人手機查看聊天紀錄',
+  deadline: '立即開始',
+  reason: '避免員工偷懶',
+  basis: '主管要求',
+  tone: 'formal'
+}, { ...baseOptions, purpose: 'rule' });
+assert(unsafeWork.copyable === false, '超密度監控與私人手機檢查不應被潤稿成可執行命令');
+assert(unsafeWork.workRiskCount >= 1, '不合理工作內容未形成工作風險命中');
+
+// 37. 三種潤稿要保留核心內容，且語氣確實不同。
+const smartRewriteCase = analyzeMessage('', {
+  topic: '居家照服員排班',
+  fact: '目前排班未依既定行政規則完成確認',
+  action: '由熟悉排班規則的人員重新檢查並調整',
+  deadline: '',
+  reason: '避免排班錯誤造成後續營運損失',
+  basis: '排班屬既定行政作業',
+  tone: 'directive'
+}, { ...baseOptions, purpose: 'correct', rewriteStyle: 'natural' });
+assert(smartRewriteCase.rewriteVariants.natural === '針對居家照服員排班，目前排班未依既定行政規則完成確認。請由熟悉排班規則的人員重新檢查並調整，避免排班錯誤造成後續營運損失。', '自然版未形成預期的工作語意順序');
+assert(smartRewriteCase.rewriteVariants.concise.includes('針對居家照服員排班'), '精簡版遺失工作主題');
+assert(smartRewriteCase.rewriteVariants.formal.includes('以避免排班錯誤造成後續營運損失'), '正式版未正確處理目的語');
+for (const style of ['natural', 'concise', 'formal']) {
+  const coverage = smartRewriteCase.rewriteVariantCoverage[style];
+  for (const key of ['topic', 'fact', 'action', 'reason']) assert(coverage[key] === true, `${style} 版遺失 ${key}`);
+}
+
+// 38. Runtime 語料與輸出必須採繁體中文；簡體輸入可辨識但不得原樣流入輸出。
+const simplifiedInput = analyzeMessage('老板说你这人太差，赶紧滚出去。', {
+  topic: '排班確認',
+  fact: '目前尚有一個時段未完成確認',
+  action: '請重新確認可值班人員',
+  deadline: '今天下午五時前',
+  reason: '避免後續排班衝突',
+  basis: '',
+  tone: 'directive'
+}, { ...baseOptions, rewriteStyle: 'natural' });
+assert(simplifiedInput.corpusHitCount >= 1, '簡體輸入未經繁體正規化後進入風險偵測');
+for (const bad of ['老板', '这', '赶紧', '滚出去']) assert(!simplifiedInput.safeText.includes(bad), `簡體或原始辱罵流入輸出：${bad}`);
+
+console.log('v1.6 linguistic-corpus and smart-rewrite tests passed.');

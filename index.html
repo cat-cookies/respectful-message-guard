@@ -275,8 +275,8 @@
         <div class="panel-heading">
           <div>
             <p class="step-label">步驟三｜輸出</p>
-            <h2 id="resultTitle">較安全、可直接複製的版本</h2>
-            <p class="result-subtitle">通過工作合理性與風險檢核後，潤稿引擎會依事實、行動、期限與對象重新組句，不使用原始訊息，也不預設套固定公文句型。</p>
+            <h2 id="resultTitle">去除高風險語句後的工作訊息建議</h2>
+            <p class="result-subtitle">通過工作合理性與風險檢核後，潤稿引擎只依你填寫的事實、行動、期限、原因與對象重新組句。原始訊息不會進入輸出；三種版本可直接切換比較。</p>
           </div>
           <div id="riskBadge" class="risk-badge neutral">尚未檢核</div>
         </div>
@@ -287,13 +287,36 @@
         </div>
 
         <div id="resultContent" hidden>
+          <section class="rewrite-variant-box" aria-labelledby="variantTitle">
+            <div class="variant-heading">
+              <div>
+                <h3 id="variantTitle">比較三種潤稿版本</h3>
+                <p id="variantHint">三種版本都只使用「實質工作內容」。</p>
+              </div>
+              <div class="variant-tabs" role="group" aria-label="潤稿版本">
+                <button id="variantNaturalButton" class="variant-button" type="button" aria-pressed="false">自然工作訊息</button>
+                <button id="variantConciseButton" class="variant-button" type="button" aria-pressed="false">精簡直接</button>
+                <button id="variantFormalButton" class="variant-button" type="button" aria-pressed="false">正式書面</button>
+              </div>
+            </div>
+          </section>
+
           <label class="textarea-label" for="safeText">
-            <span>建議版本</span>
+            <span>目前選取版本</span>
             <textarea id="safeText" rows="10" readonly></textarea>
           </label>
           <p id="outputSourceNotice" class="output-source-notice safe">建議版本只會由實質內容欄位組成。</p>
+
+          <section class="coverage-box" aria-labelledby="coverageTitle">
+            <div>
+              <strong id="coverageTitle">內容保留檢核</strong>
+              <span>用來提醒潤稿後是否仍保留你輸入的主要工作資訊；不是語意等價的法律保證。</span>
+            </div>
+            <div id="coverageList" class="coverage-list"></div>
+          </section>
+
           <div class="button-row compact">
-            <button id="copyButton" class="primary-button" type="button">複製建議版本</button>
+            <button id="copyButton" class="primary-button" type="button">複製目前版本</button>
           </div>
           <p id="copyStatus" class="copy-status" role="status"></p>
 
@@ -314,7 +337,7 @@
 
           <details class="limitations source-method">
             <summary>離線語料庫如何建立</summary>
-            <p>語料庫不是只列髒話。網站將來源分成「現行法規／官方指引與FAQ／司法實務」，再抽象化成三層：高風險用語、語句結構、工作內容規則。每個命中項目會顯示來源連結。判決只用來建立風險類型與上下文規則，不把個案裁判結果機械套用到新事件。</p>
+            <p>語料庫不是只列髒話。網站將來源分成「現行法規／官方指引與FAQ／司法實務／完整案例語料」，再形成四層判讀：高風險用語、語言學結構、完整案例相似語句、工作內容合理性規則。每個命中項目會顯示來源連結。判決只用來建立風險類型與上下文規則，不把個案裁判結果機械套用到新事件。</p>
           </details>
 
           <details class="limitations" open>
@@ -341,7 +364,7 @@
 
     <footer class="site-footer">
       <p>本工具採純前端離線語料庫、工作合理性規則與結構化潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 1.5.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜無後端、無第三方程式庫、無分析追蹤、無 Cookie 或網路請求。</p>
+      <p>版本 1.6.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜無後端、無第三方程式庫、無分析追蹤、無 Cookie 或網路請求。</p>
     </footer>
   </div>
 
@@ -352,7 +375,7 @@
     </div>
     <div class="dialog-body">
       <h3>零後端，但有離線語料庫</h3>
-      <p>網站沒有帳號、伺服器資料庫、API、雲端模型、分析追蹤或廣告程式。高風險資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；每筆用語或規則均配對風險警示、較安全處理策略、法制標籤及可追溯來源。</p>
+      <p>網站沒有帳號、伺服器資料庫、API、雲端模型、分析追蹤或廣告程式。高風險資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；每筆用語或規則均配對風險警示、較安全處理策略與法制標籤；另加入完整案例相似語句層，用來補足同義改寫、隱性羞辱、煤氣燈與權勢壓迫。</p>
       <h3>工作內容也會被檢核</h3>
       <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
       <h3>原始訊息與輸出完全分流</h3>
@@ -370,6 +393,7 @@
     </div>
   </dialog>
 
+  <script src="expert-corpus.js" defer></script>
   <script src="risk-corpus.js" defer></script>
   <script src="rewrite-engine.js" defer></script>
   <script src="app.js" defer></script>

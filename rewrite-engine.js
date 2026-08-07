@@ -354,7 +354,7 @@
 
     const { you } = personWords(audience);
     if (style === 'formal') return `關於${t}，`;
-    if (style === 'concise') return '';
+    if (style === 'concise') return f ? `針對${t}，` : `針對${t}。`;
 
     if (audience === 'client' || audience === 'student' || audience === 'public') {
       if (purpose === 'refuse' || purpose === 'rule') return `您好，關於${t}，`;
@@ -363,9 +363,9 @@
     if (audience === 'supervisor') return f ? `想跟${you}確認${t}，` : `想跟${you}確認${t}。`;
 
     if (purpose === 'remind' || purpose === 'schedule') return f ? `想確認${t}，` : `想確認${t}。`;
-    if (purpose === 'correct') return `我這邊看了一下${t}，`;
+    if (purpose === 'correct') return `針對${t}，`;
     if (purpose === 'rule' || purpose === 'refuse') return `關於${t}，`;
-    return f ? `想跟你確認${t}，` : `想跟你確認${t}。`;
+    return f ? `關於${t}，` : `關於${t}。`;
   }
 
   function factSentence(fact, purpose, audience, style, lead = '') {
@@ -376,7 +376,11 @@
       if (lead && /，$/u.test(lead)) return sentence(`${lead}${f}`);
       return sentence(f);
     }
-    if (style === 'concise') return sentence(f);
+    if (style === 'concise') {
+      if (lead && /，$/u.test(lead)) return sentence(`${lead}${f}`);
+      if (lead && /。$/u.test(lead)) return `${lead}${sentence(f)}`;
+      return sentence(f);
+    }
 
     if (lead && /。$/u.test(lead)) {
       // 已有自然開頭，不再加「目前情形如下」。
@@ -385,12 +389,11 @@
     if (lead && /，$/u.test(lead)) return sentence(`${lead}${f}`);
 
     if (audience === 'supervisor') return sentence(f);
-    if (purpose === 'correct' && !/^(?:目前|我|這邊|已|經|查|確認)/u.test(f)) return sentence(`我這邊確認到${f}`);
     return sentence(f);
   }
 
   function chooseClosing(purpose, tone, style, seedText) {
-    if (style === 'concise') return '';
+    if (style === 'concise') return f ? `針對${t}，` : `針對${t}。`;
     const bucket = PURPOSE_CLOSINGS[purpose] || PURPOSE_CLOSINGS.general;
     const list = style === 'formal' ? (bucket.formal || bucket.directive || []) : (bucket[tone] || bucket.directive || []);
     if (!list.length) return '';
@@ -403,6 +406,82 @@
     if (!value) return '';
     if (style === 'formal') return sentence(`本事項之職務依據為${value}`);
     return sentence(`這項安排的工作依據是${value}`);
+  }
+
+  function characterBigrams(text) {
+    const value = stripEnd(text).replace(/[\s，。；：、！？!?「」『』（）()【】\[\]]+/gu, '');
+    const grams = new Set();
+    if (!value) return grams;
+    if (value.length === 1) { grams.add(value); return grams; }
+    for (let i = 0; i < value.length - 1; i += 1) grams.add(value.slice(i, i + 2));
+    return grams;
+  }
+
+  function fieldRetained(source, output) {
+    const src = stripEnd(source);
+    const out = stripEnd(output);
+    if (!src) return null;
+    if (!out) return false;
+    const compactSrc = src.replace(/[\s，。；：、！？!?「」『』（）()【】\[\]]+/gu, '');
+    const compactOut = out.replace(/[\s，。；：、！？!?「」『』（）()【】\[\]]+/gu, '');
+    if (compactOut.includes(compactSrc)) return true;
+    const a = characterBigrams(src);
+    const b = characterBigrams(out);
+    if (!a.size) return true;
+    let hit = 0;
+    for (const gram of a) if (b.has(gram)) hit += 1;
+    return hit / a.size >= (a.size <= 4 ? 0.5 : 0.62);
+  }
+
+  function coverageReport(substance, output, includeBasis) {
+    return {
+      topic: fieldRetained(substance.topic, output),
+      fact: fieldRetained(substance.fact, output),
+      action: fieldRetained(substance.action, output),
+      deadline: fieldRetained(substance.deadline, output),
+      reason: fieldRetained(substance.reason, output),
+      basis: includeBasis ? fieldRetained(substance.basis, output) : null
+    };
+  }
+
+  // Purpose-aware candidate: facts first, then the concrete action, then only the
+  // reason/impact supplied by the user. This deliberately avoids generic praise,
+  // blame, legal conclusions and filler closings.
+  function plannerCandidate(substance, options, style) {
+    const topic = substance.topic || '';
+    const fact = substance.fact || '';
+    const action = substance.action || '';
+    const deadline = substance.deadline || '';
+    const reason = substance.reason || '';
+    const basis = substance.basis || '';
+    const tone = substance.tone || 'directive';
+    const audience = options.audience || 'coworker';
+    const purpose = options.purpose || 'general';
+    const lead = topicLead(topic, fact, purpose, audience, style);
+    const factBlock = factSentence(fact, purpose, audience, style, lead);
+    const directFact = fact ? factSentence(fact, purpose, audience, style, '') : '';
+    const actionBlock = actionSentence(action, deadline, tone, audience, style);
+    const integrated = integratedActionReason(action, deadline, reason, tone, audience, style, purpose);
+    const reasonBlock = reasonSentence(reason, style);
+    const basisBlock = options.includeBasis ? basisSentence(basis, style) : '';
+
+    let parts;
+    if (purpose === 'refuse') {
+      // A refusal reads better when the objective constraint is stated first and
+      // the alternative follows; do not turn the boundary into a punitive command.
+      parts = [factBlock || directFact, reasonBlock, actionBlock, basisBlock];
+    } else if (purpose === 'rule') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else if (purpose === 'schedule') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else if (purpose === 'correct') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else if (purpose === 'remind') {
+      parts = [factBlock || directFact, integrated || actionBlock, basisBlock];
+    } else {
+      parts = [factBlock || directFact, integrated || actionBlock, reason && !integrated ? reasonBlock : '', basisBlock];
+    }
+    return postProcess(parts.filter(Boolean).join(''), style, audience);
   }
 
   function buildCandidate(substance, options, style, layout) {
@@ -421,7 +500,8 @@
     const actionBlock = actionSentence(action, deadline, tone, audience, style);
     const reasonBlock = reasonSentence(reason, style);
     const integratedBlock = integratedActionReason(action, deadline, reason, tone, audience, style, purpose);
-    const closing = chooseClosing(purpose, tone, style, [topic, fact, action, deadline].join('|'));
+    const shouldUseClosing = Boolean(deadline) && (purpose === 'remind' || purpose === 'schedule') && style !== 'concise';
+    const closing = shouldUseClosing ? chooseClosing(purpose, tone, style, [topic, fact, action, deadline].join('|')) : '';
     const basisBlock = options.includeBasis ? basisSentence(basis, style) : '';
 
     let parts = [];
@@ -548,7 +628,10 @@
         notice: '原始訊息只用於風險檢核，不會被拿來補寫或組成建議版本。請至少填寫工作主題、客觀事實或希望對方完成的行動。',
         style,
         qualityScore: 0,
-        variants: {}
+        variants: {},
+        quality: {},
+        coverage: {},
+        variantCoverage: {}
       };
     }
 
@@ -563,7 +646,7 @@
         : naturalDirect
           ? ['direct-no-closing', 'direct', 'integrated', 'integrated-no-closing', 'standard', 'reason-before-action', 'action-first']
           : ['integrated', 'integrated-no-closing', 'standard', 'reason-before-action', 'action-first'];
-      const candidates = layouts.map(layout => buildCandidate(substance, options, targetStyle, layout));
+      const candidates = [plannerCandidate(substance, options, targetStyle), ...layouts.map(layout => buildCandidate(substance, options, targetStyle, layout))];
       const best = bestOf(candidates, targetStyle);
       variants[targetStyle] = best.text;
       quality[targetStyle] = best.score;
@@ -580,7 +663,9 @@
       style,
       qualityScore: quality[style] || 0,
       variants,
-      quality
+      quality,
+      coverage: coverageReport(substance, selected, Boolean(options.includeBasis)),
+      variantCoverage: Object.fromEntries(Object.entries(variants).map(([key, value]) => [key, coverageReport(substance, value, Boolean(options.includeBasis))]))
     };
   }
 
@@ -590,6 +675,8 @@
     scoreCandidate,
     naturalize,
     formalize,
-    normalize
+    normalize,
+    plannerCandidate,
+    coverageReport
   };
 });
