@@ -9,9 +9,20 @@ const CORPUS = (() => {
   throw new Error('離線風險語料庫未載入。');
 })();
 
+const REWRITE_ENGINE = (() => {
+  if (typeof globalThis !== 'undefined' && globalThis.MESSAGE_REWRITE_ENGINE) return globalThis.MESSAGE_REWRITE_ENGINE;
+  if (typeof module !== 'undefined' && module.exports) return require('./rewrite-engine.js');
+  throw new Error('離線潤稿引擎未載入。');
+})();
+
 const LEGAL_CATALOG = CORPUS.legalCatalog || {};
+const SOURCE_CATALOG = CORPUS.sourceCatalog || {};
 const PHRASE_ENTRIES = CORPUS.phraseEntries || [];
 const PATTERN_ENTRIES = (CORPUS.patternEntries || []).map(entry => ({
+  ...entry,
+  regex: new RegExp(entry.pattern, 'giu')
+}));
+const CONTEXT_ENTRIES = (CORPUS.contextRules || []).map(entry => ({
   ...entry,
   regex: new RegExp(entry.pattern, 'giu')
 }));
@@ -74,8 +85,8 @@ const LEGAL_REFERENCES = [
   {
     title: '公務人員與校園分流',
     body: '公務人員職場霸凌、校園霸凌及校園性別事件各有專門的防護、調查與救濟程序，不能直接套用一般民間職場流程。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=A0030050',
-    link: '公務人員安全衛生防護與校園相關法制'
+    href: 'https://www.csptc.gov.tw/News.aspx?n=4555&sms=12512',
+    link: '公務人員保障法第19條與保訓會職場霸凌防治專區'
   }
 ];
 
@@ -220,6 +231,12 @@ function getLegalNotes(keys) {
     .filter(Boolean);
 }
 
+function getSourceNotes(keys) {
+  return (keys || [])
+    .map(key => SOURCE_CATALOG[key] ? ({ id: key, ...SOURCE_CATALOG[key] }) : null)
+    .filter(Boolean);
+}
+
 function dedupeFindings(findings) {
   const seen = new Set();
   return findings.filter(item => {
@@ -253,7 +270,10 @@ function scanCorpus(text, options, source = '原始訊息') {
       canonicalPhrase: entry.phrase,
       reason: entry.warning,
       safeAction: entry.safeAction,
-      legalNotes: getLegalNotes(entry.legal)
+      legalNotes: getLegalNotes(entry.legal),
+      sourceNotes: getSourceNotes(entry.sources),
+      workContentRisk: Boolean(entry.workContentRisk),
+      contextSensitive: Boolean(entry.contextSensitive)
     });
   }
 
@@ -273,7 +293,10 @@ function scanCorpus(text, options, source = '原始訊息') {
       canonicalPhrase: '結構語句',
       reason: entry.warning,
       safeAction: entry.safeAction,
-      legalNotes: getLegalNotes(entry.legal)
+      legalNotes: getLegalNotes(entry.legal),
+      sourceNotes: getSourceNotes(entry.sources),
+      workContentRisk: Boolean(entry.workContentRisk),
+      contextSensitive: Boolean(entry.contextSensitive)
     });
   }
 
@@ -380,7 +403,92 @@ function scanPii(text, source = '原始訊息') {
   return { findings, score };
 }
 
-function sanitizeOutputField(text, options) {
+function hasProfessionalContext(substance = {}) {
+  const text = normalizeText([
+    substance.topic, substance.fact, substance.action, substance.reason, substance.basis
+  ].filter(Boolean).join(' '));
+  return /(?:醫療|臨床|照護|衛教|法律|法規|判決|訴訟|偵查|司法|教育|教學|教材|性教育|研究|學術|倫理審查|犯罪調查|專業訓練|健康風險|醫學)/u.test(text);
+}
+
+function hasPlausibleWorkBasis(basis = '') {
+  const text = normalizeText(basis).trim();
+  if (text.length < 8) return false;
+  if (/(?:因為我是老闆|因為我是老板|主管說了算|照做就對|沒有理由|我高興|我想要|不需要理由)/u.test(text)) return false;
+  return /(?:職務|職務說明|勞動契約|工作規則|專案|客戶|服務|會議|業務|公務|組織任務|法定|法規|政策|作業程序|標準作業程序|排班|輪值|值班|研究|醫療|臨床|教學|教育|採購|稽核|調查|安全|照護|合約|契約)/u.test(text);
+}
+
+function hasProfessionalBasis(basis = '') {
+  const text = normalizeText(basis).trim();
+  return text.length >= 6 && /(?:醫療|臨床|照護|衛教|法律|法規|判決|訴訟|偵查|司法|教育|教學|教材|性教育|研究|學術|倫理審查|犯罪調查|專業訓練|健康風險|醫學)/u.test(text);
+}
+
+function scanWorkContext(substance = {}, options = {}) {
+  const combined = normalizeText([
+    substance.topic, substance.fact, substance.action, substance.deadline, substance.reason, substance.basis
+  ].filter(Boolean).join(' '));
+  if (!combined) return { findings: [], blocking: [], score: 0 };
+
+  const basis = normalizeText(substance.basis || '');
+  const basisAdequate = hasPlausibleWorkBasis(basis);
+  const professional = hasProfessionalBasis(basis);
+  const findings = [];
+  const blocking = [];
+  let score = 0;
+
+  for (const entry of CONTEXT_ENTRIES) {
+    entry.regex.lastIndex = 0;
+    const match = entry.regex.exec(combined);
+    if (!match) continue;
+
+    let severity = entry.severity;
+    let blocked = Boolean(entry.blockOutput);
+    let reason = entry.warning;
+    let safeAction = entry.safeAction;
+
+    if (entry.professionalException && professional) {
+      severity = 'info';
+      blocked = false;
+      reason = `${entry.warning} 本次另偵測到醫療、法律、教育、研究或調查等專業目的線索，因此不直接攔截，但仍應確認對象、目的與最小必要性。`;
+      safeAction = `${entry.safeAction} 專業術語應保留中性、必要且可說明其目的。`;
+    } else if (entry.requiresBasis) {
+      if (basisAdequate) {
+        severity = 'info';
+        blocked = false;
+        reason = `${entry.warning} 本次已提供可辨識的工作必要性／職務依據，系統降為人工確認提醒；是否合理仍應依實際職務、契約、工時、安全、自願性與權勢關係判斷。`;
+      } else if (entry.blockOutputWhenNoBasis) {
+        blocked = true;
+        reason = basis
+          ? `${entry.warning} 雖已填寫「工作必要性／職務依據」，但內容過短、過於抽象或未能指出職務、專案、客戶、法規、程序等可核對依據，因此仍不作為解除攔截的理由。`
+          : entry.warning;
+      }
+    }
+
+    const finding = {
+      type: 'work',
+      source: '實質工作內容',
+      corpusId: entry.id,
+      title: entry.category,
+      severity,
+      fragment: match[0],
+      canonicalPhrase: '工作內容結構',
+      reason,
+      safeAction,
+      legalNotes: getLegalNotes(entry.legal),
+      sourceNotes: getSourceNotes(entry.sources),
+      blocking: blocked,
+      professionalException: Boolean(entry.professionalException),
+      requiresBasis: Boolean(entry.requiresBasis)
+    };
+
+    findings.push(finding);
+    if (severity !== 'info') score += entry.weight || 0;
+    if (blocked) blocking.push(finding);
+  }
+
+  return { findings: dedupeFindings(findings), blocking: dedupeFindings(blocking), score };
+}
+
+function sanitizeOutputField(text, options, context = {}) {
   let output = normalizeText(text);
   let blocked = 0;
 
@@ -393,6 +501,7 @@ function sanitizeOutputField(text, options) {
   for (const matcher of PHRASE_MATCHERS) {
     const { entry, regex } = matcher;
     if (entry.audiences && !entry.audiences.includes(options.audience)) continue;
+    if (entry.contextSensitive && context.allowProfessionalTerms) continue;
     regex.lastIndex = 0;
     if (!regex.test(output)) continue;
     regex.lastIndex = 0;
@@ -433,12 +542,13 @@ function removeSentencesContaining(text, regex) {
 }
 
 function sanitizeSubstance(substance, options) {
-  const keys = ['topic', 'fact', 'action', 'deadline', 'reason'];
+  const keys = ['topic', 'fact', 'action', 'deadline', 'reason', 'basis'];
   const cleaned = {};
   let blocked = 0;
+  const professional = hasProfessionalBasis(substance.basis || '');
 
   for (const key of keys) {
-    const result = sanitizeOutputField(substance[key] || '', options);
+    const result = sanitizeOutputField(substance[key] || '', options, { allowProfessionalTerms: professional });
     cleaned[key] = result.text;
     blocked += result.blocked;
   }
@@ -448,54 +558,10 @@ function sanitizeSubstance(substance, options) {
 
 function composeSafeMessage(substance, options) {
   // 重要安全不變量：
-  // 本函式只接收「實質內容欄位」，沒有 raw/original message 參數。
-  // 因此原始高風險訊息不會被拿來拼接可複製版本。
-  const opening = OPENING_BY_AUDIENCE[options.audience] || '';
-  const parts = [];
-
-  if (substance.topic) {
-    const topic = cleanText(substance.topic).replace(/[。！？]+$/g, '');
-    if (topic) parts.push(`關於${topic}，說明如下。`);
-  }
-
-  if (substance.fact) {
-    parts.push(ensureSentence(substance.fact));
-  }
-
-  if (substance.action) {
-    parts.push(sentenceWithoutLeadingPlease(substance.action));
-  } else if (substance.fact || substance.topic) {
-    parts.push(PURPOSE_FALLBACK[options.purpose] || PURPOSE_FALLBACK.general);
-  }
-
-  if (substance.deadline) {
-    const deadline = cleanText(substance.deadline).replace(/[。！？]+$/g, '');
-    if (deadline) parts.push(`處理或回覆期限：${deadline}。`);
-  }
-
-  if (substance.reason) {
-    parts.push(ensureSentence(`相關原因、影響或程序：${substance.reason}`));
-  }
-
-  if (!parts.length) {
-    return {
-      text: '',
-      copyable: false,
-      notice: '原始訊息只用於風險檢核，不會自動進入建議版本。請至少填寫「客觀事實／目前狀況」或「希望對方完成的行動」，再產生可直接複製的內容。'
-    };
-  }
-
-  const closing = TONE_CLOSING[substance.tone] || TONE_CLOSING.directive;
-  parts.push(closing);
-
-  let text = parts.filter(Boolean).join('\n');
-  if (opening) text = opening + text;
-
-  return {
-    text: cleanText(text.replace(/\n\s*\n/g, '\n')),
-    copyable: true,
-    notice: '建議版本只由「實質內容」欄位組成；原始訊息不會被自動複製或拼接進輸出。'
-  };
+  // 1. 本函式只接收結構化「實質工作內容」，沒有 raw/original message 參數。
+  // 2. 職務依據預設只供合理性檢核，不自動出現在對外訊息。
+  // 3. 潤稿引擎不得新增使用者未提供的事實、日期、人名、制裁或法律結論。
+  return REWRITE_ENGINE.rewriteStructuredMessage(substance, options);
 }
 
 function analyzeMessage(raw, substance = {}, options = {}) {
@@ -505,7 +571,9 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     removeEmoji: options.removeEmoji !== false,
     maskPii: options.maskPii !== false,
     recordableTone: options.recordableTone !== false,
-    clipboardImageDetected: Boolean(options.clipboardImageDetected)
+    clipboardImageDetected: Boolean(options.clipboardImageDetected),
+    rewriteStyle: options.rewriteStyle || 'natural',
+    includeBasis: Boolean(options.includeBasis)
   };
 
   const findings = [];
@@ -523,7 +591,7 @@ function analyzeMessage(raw, substance = {}, options = {}) {
   findings.push(...rawPii.findings);
   score += rawPii.score;
 
-  const substanceCombined = [substance.topic, substance.fact, substance.action, substance.deadline, substance.reason]
+  const substanceCombined = [substance.topic, substance.fact, substance.action, substance.deadline, substance.reason, substance.basis]
     .filter(Boolean)
     .join('\n');
 
@@ -540,6 +608,10 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     findings.push(...substancePii.findings);
     score += substancePii.score;
   }
+
+  const workContext = scanWorkContext(substance, normalizedOptions);
+  findings.push(...workContext.findings);
+  score += workContext.score;
 
   if (normalizedOptions.clipboardImageDetected) {
     score += 6;
@@ -559,17 +631,28 @@ function analyzeMessage(raw, substance = {}, options = {}) {
   const sanitized = sanitizeSubstance(substance, normalizedOptions);
   const composed = composeSafeMessage(sanitized.substance, normalizedOptions);
 
-  // 最終防漏：即使使用者把高風險用語放在「實質內容」欄，
-  // 可複製版本仍需再掃一次；若仍命中，就不提供可複製輸出。
+  // 工作內容本身若出現高風險，不應用「禮貌改寫」漂白成可執行命令。
+  // 必須先修正工作要求或補足必要的職務依據。
   let safeText = composed.text;
   let copyable = composed.copyable;
   let outputNotice = composed.notice;
   let residualCount = 0;
 
-  if (safeText) {
+  if (workContext.blocking.length) {
+    const labels = [...new Set(workContext.blocking.map(item => item.title))].slice(0, 3).join('、');
+    safeText = '';
+    copyable = false;
+    outputNotice = `實質工作內容本身出現「${labels}」風險，系統不會把可能不合理的要求包裝成較禮貌的命令。請先修正工作內容，或在適用規則允許時補充具體職務依據。`;
+    residualCount += workContext.blocking.length;
+  }
+
+  if (safeText && copyable) {
     const residualCorpus = scanCorpus(safeText, normalizedOptions, '建議版本防漏');
     const residualPii = normalizedOptions.maskPii ? { findings: [], score: 0 } : scanPii(safeText, '建議版本防漏');
-    const severeResidual = residualCorpus.findings.filter(item => item.severity !== 'info');
+    const professionalContext = hasProfessionalBasis(substance.basis || '');
+    const severeResidual = residualCorpus.findings.filter(item =>
+      item.severity !== 'info' && !(professionalContext && item.contextSensitive)
+    );
 
     if (severeResidual.length || residualPii.findings.some(item => item.severity === 'severe')) {
       residualCount = severeResidual.length + residualPii.findings.length;
@@ -594,12 +677,13 @@ function analyzeMessage(raw, substance = {}, options = {}) {
   const deduped = dedupeFindings(findings);
   const privacyCount = deduped.filter(item => item.type === 'privacy').length;
   const toneRiskCount = deduped.filter(item => item.type === 'tone' && item.severity !== 'info').length;
+  const workRiskCount = deduped.filter(item => item.type === 'work' && item.severity !== 'info').length;
   const corpusHitCount = deduped.filter(item => item.corpusId && !item.corpusId.startsWith('PII-') && !item.corpusId.startsWith('FORMAT-') && item.corpusId !== 'OUTPUT-BLOCK').length;
 
   score = Math.min(100, score);
   const level = score >= 55 ? 'high' : score >= 20 ? 'medium' : 'low';
   const label = level === 'high'
-    ? '高風險：原訊息不宜直接傳送'
+    ? '高風險：請勿直接傳送或執行'
     : level === 'medium'
       ? '中度風險：建議確認脈絡與用語'
       : '較低風險：仍需人工確認';
@@ -628,11 +712,17 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     label,
     privacyCount,
     toneRiskCount,
+    workRiskCount,
     corpusHitCount,
     blockedCount: sanitized.blocked + residualCount,
+    rewriteStyle: composed.style || normalizedOptions.rewriteStyle,
+    rewriteQualityScore: composed.qualityScore || 0,
+    rewriteVariants: composed.variants || {},
     corpusVersion: CORPUS.version,
     corpusPhraseCount: PHRASE_ENTRIES.length,
-    corpusPatternCount: PATTERN_ENTRIES.length
+    corpusPatternCount: PATTERN_ENTRIES.length,
+    corpusContextCount: CONTEXT_ENTRIES.length,
+    corpusSourceCount: Object.keys(SOURCE_CATALOG).length
   };
 }
 
@@ -643,6 +733,7 @@ function readSubstanceFromForm() {
     action: $('actionText').value,
     deadline: $('deadlineText').value,
     reason: $('reasonText').value,
+    basis: $('basisText').value,
     tone: $('toneSelect').value
   };
 }
@@ -651,7 +742,7 @@ function handleAnalyze() {
   const raw = $('sourceText').value.trim();
   const substance = readSubstanceFromForm();
 
-  if (!raw && ![substance.topic, substance.fact, substance.action, substance.deadline, substance.reason].some(value => String(value || '').trim())) {
+  if (!raw && ![substance.topic, substance.fact, substance.action, substance.deadline, substance.reason, substance.basis].some(value => String(value || '').trim())) {
     $('inputError').textContent = '請先貼上欲檢核的原始訊息，或填寫要傳達的實質工作內容。';
     $('inputError').hidden = false;
     $('sourceText').focus();
@@ -666,7 +757,9 @@ function handleAnalyze() {
     removeEmoji: $('removeEmojiOption').checked,
     maskPii: $('maskPiiOption').checked,
     recordableTone: true,
-    clipboardImageDetected
+    clipboardImageDetected,
+    rewriteStyle: $('rewriteStyleSelect').value,
+    includeBasis: $('includeBasisOption').checked
   };
 
   const result = analyzeMessage(raw, substance, options);
@@ -684,6 +777,7 @@ function renderResult(result) {
 
   $('corpusHitCount').textContent = result.corpusHitCount;
   $('privacyCount').textContent = result.privacyCount;
+  $('workRiskCount').textContent = result.workRiskCount;
   $('blockedCount').textContent = result.blockedCount;
 
   $('outputSourceNotice').textContent = result.outputNotice;
@@ -741,6 +835,31 @@ function renderResult(result) {
       card.appendChild(legalBox);
     }
 
+    if (finding.sourceNotes && finding.sourceNotes.length) {
+      const sourceBox = document.createElement('div');
+      sourceBox.className = 'evidence-source-list';
+      const head = document.createElement('div');
+      head.className = 'evidence-source-title';
+      head.textContent = '語料／判讀依據';
+      sourceBox.appendChild(head);
+      for (const source of finding.sourceNotes.slice(0, 4)) {
+        const row = document.createElement('p');
+        row.className = 'evidence-source';
+        if (source.url) {
+          const a = document.createElement('a');
+          a.href = source.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.textContent = `${source.kind}｜${source.label}`;
+          row.appendChild(a);
+        } else {
+          row.textContent = `${source.kind}｜${source.label}`;
+        }
+        sourceBox.appendChild(row);
+      }
+      card.appendChild(sourceBox);
+    }
+
     fragment.appendChild(card);
   }
 
@@ -748,8 +867,45 @@ function renderResult(result) {
   $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function renderSourceCatalog() {
+  const target = $('sourceCatalogList');
+  const count = $('sourceCatalogCount');
+  if (!target || !count) return;
+
+  const entries = Object.entries(SOURCE_CATALOG);
+  count.textContent = String(entries.length);
+  const fragment = document.createDocumentFragment();
+  for (const [id, source] of entries) {
+    const card = document.createElement('article');
+    card.className = 'source-catalog-card';
+
+    const meta = document.createElement('div');
+    meta.className = 'source-catalog-meta';
+    meta.textContent = `${source.kind || '來源'}｜${id}`;
+
+    const title = document.createElement('h3');
+    title.textContent = source.label || id;
+
+    const note = document.createElement('p');
+    note.textContent = source.note || '';
+
+    card.append(meta, title, note);
+    if (source.url) {
+      const link = document.createElement('a');
+      link.href = source.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = '開啟來源查證';
+      card.appendChild(link);
+    }
+    fragment.appendChild(card);
+  }
+  target.replaceChildren(fragment);
+}
+
 function initialize() {
   renderLegalReferences();
+  renderSourceCatalog();
   bindEvents();
   updateCharCount();
   renderCorpusStats();
@@ -777,7 +933,7 @@ function bindEvents() {
 }
 
 function renderCorpusStats() {
-  const text = `${PHRASE_ENTRIES.length} 筆用語＋${PATTERN_ENTRIES.length} 組結構規則`;
+  const text = `${PHRASE_ENTRIES.length} 筆用語＋${PATTERN_ENTRIES.length} 組語句結構＋${CONTEXT_ENTRIES.length} 組工作內容規則＋${Object.keys(SOURCE_CATALOG).length} 組來源`;
   if ($('corpusStats')) $('corpusStats').textContent = text;
   if ($('corpusVersion')) $('corpusVersion').textContent = CORPUS.version;
   if ($('privacyCorpusStats')) $('privacyCorpusStats').textContent = text;
@@ -816,18 +972,21 @@ function loadExample() {
   $('audienceSelect').value = 'coworker';
   $('purposeSelect').value = 'correct';
   $('toneSelect').value = 'directive';
+  $('rewriteStyleSelect').value = 'natural';
+  $('includeBasisOption').checked = false;
   $('sourceText').value = '晚上要不要~~~親親\\n口交\\n綠茶婊\\n啪啪啪啦%％%％%%\\n要%%%嗎?胸好大。';
   $('topicText').value = '昨日交辦資料的版本與期限';
   $('factText').value = '目前收到的檔案仍缺少附件二，且版本日期與會議確認內容不一致';
   $('actionText').value = '重新確認附件二並上傳正確版本';
   $('deadlineText').value = '今天下午 5 時前';
   $('reasonText').value = '需於明日上午會議前完成彙整，避免後續使用錯誤版本';
+  $('basisText').value = '本事項屬既定專案工作與會議前置作業';
   updateCharCount();
   $('sourceText').focus();
 }
 
 function clearAll() {
-  for (const id of ['sourceText', 'topicText', 'factText', 'actionText', 'deadlineText', 'reasonText', 'safeText']) {
+  for (const id of ['sourceText', 'topicText', 'factText', 'actionText', 'deadlineText', 'reasonText', 'basisText', 'safeText']) {
     $(id).value = '';
   }
   $('resultContent').hidden = true;
@@ -838,6 +997,8 @@ function clearAll() {
   $('copyStatus').textContent = '';
   $('inputError').hidden = true;
   $('copyButton').disabled = false;
+  $('rewriteStyleSelect').value = 'natural';
+  $('includeBasisOption').checked = false;
   clipboardImageDetected = false;
   $('pasteNotice').hidden = true;
   updateCharCount();
@@ -888,11 +1049,13 @@ if (typeof module !== 'undefined' && module.exports) {
     analyzeMessage,
     scanCorpus,
     scanPii,
+    scanWorkContext,
     sanitizeOutputField,
     sanitizeSubstance,
     composeSafeMessage,
     cleanText,
     normalizeText,
+    REWRITE_ENGINE,
     CORPUS
   };
 }

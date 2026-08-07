@@ -95,7 +95,7 @@
         <div class="notice-grid">
           <div>
             <h3>可以協助</h3>
-            <p>在送出訊息前，辨識辱罵、威脅、嘲諷、權勢壓迫、性或性別言詞、持續聯絡暗示、揭露隱私、非必要個資、表情符號與貼圖標記，並產生較中性、可留下正式紀錄的版本。</p>
+            <p>在送出訊息或下達工作要求前，辨識辱罵、威脅、嘲諷、權勢壓迫、性或性別言詞、持續聯絡暗示、揭露隱私與非必要個資；也會檢查陪酒、私人差事、無限待命、不合理工作分派、偽造紀錄與規避安全程序等「工作內容本身」的風險。</p>
           </div>
           <div>
             <h3>不能取代</h3>
@@ -111,8 +111,9 @@
           <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001" target="_blank" rel="noopener noreferrer">勞動基準法</a></li>
           <li><a href="https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL106701" target="_blank" rel="noopener noreferrer">職場霸凌防治措施準則</a></li>
           <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0060009" target="_blank" rel="noopener noreferrer">職業安全衛生設施規則</a></li>
-          <li><a href="https://www.osha.gov.tw/48110/48713/48735/135152/" target="_blank" rel="noopener noreferrer">執行職務遭受不法侵害預防指引（第五版）</a></li>
+          <li><a href="https://www.osha.gov.tw/48110/48713/48735/135152/post" target="_blank" rel="noopener noreferrer">執行職務遭受不法侵害預防指引（第五版）</a></li>
           <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=A0030050" target="_blank" rel="noopener noreferrer">公務人員執行職務安全及衛生防護辦法</a></li>
+          <li><a href="https://www.csptc.gov.tw/News.aspx?n=4555&sms=12512" target="_blank" rel="noopener noreferrer">保訓會職場霸凌防治專區（公務人員保障法第19條等）</a></li>
           <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=N0030014" target="_blank" rel="noopener noreferrer">性別平等工作法</a></li>
           <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030019" target="_blank" rel="noopener noreferrer">工作場所性騷擾防治措施準則</a></li>
           <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=D0050074" target="_blank" rel="noopener noreferrer">性騷擾防治法</a></li>
@@ -200,7 +201,7 @@
             </div>
             <span class="source-lock-badge">輸出只讀取這一區</span>
           </div>
-          <p class="field-help">請把「要處理什麼、目前事實、希望對方做什麼、期限與原因」寫在這裡。這一區會再做一次離線語料庫與個資檢核後，才用來組成可複製版本。</p>
+          <p class="field-help"><strong>這一區不只檢查語氣，也檢查「工作要求本身」是否出現高風險。</strong>請填寫要處理的事項、客觀事實、希望對方完成的行動、期限、原因，以及必要時的職務依據。若內容涉及陪酒／私人差事、強制社交、休假或下班後持續待命、明顯不合理目標、性別化要求、不實紀錄或安全程序規避，系統會直接提示或阻止產生可複製版本。</p>
 
           <label class="textarea-label" for="topicText">
             <span>事項或工作主題</span>
@@ -230,11 +231,29 @@
                 <option value="formal">正式嚴正、保留程序</option>
               </select>
             </label>
+            <label>
+              <span>潤稿風格</span>
+              <select id="rewriteStyleSelect">
+                <option value="natural" selected>自然工作訊息</option>
+                <option value="concise">精簡直接</option>
+                <option value="formal">正式書面</option>
+              </select>
+            </label>
           </div>
 
           <label class="textarea-label" for="reasonText">
             <span>原因、影響或正式程序（選填）</span>
             <textarea id="reasonText" rows="3" maxlength="1000" placeholder="例如：需於明日上午會議前完成彙整，避免後續使用錯誤版本。"></textarea>
+          </label>
+
+          <label class="textarea-label" for="basisText">
+            <span>工作必要性／職務依據（涉及宴會、飲酒、下班後、私人差事或專業敏感詞時建議填寫）</span>
+            <textarea id="basisText" rows="3" maxlength="1200" placeholder="例如：此為客戶專案既定會議；出席屬專案工作，但飲酒與續攤非必要且可拒絕。若為醫療／法律／教育／研究用語，請說明專業目的。"></textarea>
+            <small class="field-note">此欄預設只供工作合理性檢核，不會自動寫進對外訊息；也不能用來「洗白」不合理要求。</small>
+          </label>
+          <label class="check-row output-basis-option" for="includeBasisOption">
+            <input id="includeBasisOption" type="checkbox">
+            <span>確有需要時，才把職務依據寫入建議版本</span>
           </label>
         </section>
 
@@ -257,6 +276,7 @@
           <div>
             <p class="step-label">步驟三｜輸出</p>
             <h2 id="resultTitle">較安全、可直接複製的版本</h2>
+            <p class="result-subtitle">通過工作合理性與風險檢核後，潤稿引擎會依事實、行動、期限與對象重新組句，不使用原始訊息，也不預設套固定公文句型。</p>
           </div>
           <div id="riskBadge" class="risk-badge neutral">尚未檢核</div>
         </div>
@@ -278,7 +298,8 @@
           <p id="copyStatus" class="copy-status" role="status"></p>
 
           <section class="summary-strip" aria-label="檢核摘要">
-            <div><span id="corpusHitCount">0</span><small>項離線語料命中</small></div>
+            <div><span id="corpusHitCount">0</span><small>項語料／規則命中</small></div>
+            <div><span id="workRiskCount">0</span><small>項工作內容風險</small></div>
             <div><span id="privacyCount">0</span><small>項個資提醒</small></div>
             <div><span id="blockedCount">0</span><small>項輸出攔截或遮罩</small></div>
           </section>
@@ -290,6 +311,11 @@
             </div>
             <div id="findingList" class="finding-list"></div>
           </section>
+
+          <details class="limitations source-method">
+            <summary>離線語料庫如何建立</summary>
+            <p>語料庫不是只列髒話。網站將來源分成「現行法規／官方指引與FAQ／司法實務」，再抽象化成三層：高風險用語、語句結構、工作內容規則。每個命中項目會顯示來源連結。判決只用來建立風險類型與上下文規則，不把個案裁判結果機械套用到新事件。</p>
+          </details>
 
           <details class="limitations" open>
             <summary>判讀限制與使用界線</summary>
@@ -306,11 +332,16 @@
         <p>並非每項法規都會同時適用；應依身分、場域與行為態樣分流。</p>
       </div>
       <div id="legalReferenceGrid" class="reference-grid"></div>
+      <details class="source-catalog-details">
+        <summary>查看離線語料庫的法規、官方指引與判決來源（<span id="sourceCatalogCount">0</span>）</summary>
+        <p class="source-catalog-note">來源採分層使用：現行法規與主管機關指引／FAQ作為主要規範依據；司法院判決說明與公開裁判資料用來補足具體行為態樣及上下文。網站不會在使用時連線查詢，這些連結只供使用者自行查證。</p>
+        <div id="sourceCatalogList" class="source-catalog-grid"></div>
+      </details>
     </section>
 
     <footer class="site-footer">
-      <p>本工具採純前端離線語料庫與規則式文字處理，目的在於降低傳送前的溝通與個資風險，不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 1.2.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜無後端、無第三方程式庫、無分析追蹤、無 Cookie 或網路請求。</p>
+      <p>本工具採純前端離線語料庫、工作合理性規則與結構化潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
+      <p>版本 1.5.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜無後端、無第三方程式庫、無分析追蹤、無 Cookie 或網路請求。</p>
     </footer>
   </div>
 
@@ -321,9 +352,13 @@
     </div>
     <div class="dialog-body">
       <h3>零後端，但有離線語料庫</h3>
-      <p>網站沒有帳號、伺服器資料庫、API、雲端模型、分析追蹤或廣告程式。高風險用語資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；每筆用語均配對風險警示、較安全處理策略與法制標籤。</p>
+      <p>網站沒有帳號、伺服器資料庫、API、雲端模型、分析追蹤或廣告程式。高風險資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；每筆用語或規則均配對風險警示、較安全處理策略、法制標籤及可追溯來源。</p>
+      <h3>工作內容也會被檢核</h3>
+      <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
       <h3>原始訊息與輸出完全分流</h3>
       <p>原始訊息只供風險掃描，程式的輸出組句函式沒有原始訊息參數；可複製版本只讀取「實質工作內容」區塊，避免把原始辱罵、性意味、威脅或其他不當內容重新帶回輸出。</p>
+      <h3>潤稿不是固定模板拼接</h3>
+      <p>系統會依溝通目的、對象、強度與文字風格產生多個候選句，再以重複用語、標籤式公文語、過多「請」、句子冗長與內容重複等指標排序，選出較自然的版本。職務依據預設只供安全判讀，不會自動塞進訊息。</p>
       <h3>資料最小化</h3>
       <p>原始文字與結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有「本分頁是否略過法制說明」會以 sessionStorage 記錄；關閉分頁後即失效。</p>
       <h3>網路封鎖</h3>
@@ -336,6 +371,7 @@
   </dialog>
 
   <script src="risk-corpus.js" defer></script>
+  <script src="rewrite-engine.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>
