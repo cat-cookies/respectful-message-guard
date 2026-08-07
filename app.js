@@ -11,6 +11,12 @@ const LEGAL_REFERENCES = [
     link: '職業安全衛生法第22條之1至第22條之3'
   },
   {
+    title: '人事處分、調動與申訴報復',
+    body: '解僱、資遣、調動、減薪、考績或其他人事措施應依勞動法令與正式程序處理；勞工依法申訴時，並有禁止報復性不利處分的保障。',
+    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001',
+    link: '勞動基準法第10條之1、第11條、第12條、第74條'
+  },
+  {
     title: '職場霸凌程序準則',
     body: '包含防治措施、申訴管道、受理、調查、迴避、申復、保密、紀錄保存與不同事業規模的處理要求。',
     href: 'https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL106701',
@@ -79,64 +85,106 @@ const LEGAL_REFERENCES = [
 ];
 
 const LEGAL_NOTES = {
-  bullying: '職場霸凌是否成立，須依職業安全衛生法第22條之1及相關準則，綜合職務或權勢關係、業務必要性、持續性或重大情節與身心危害判斷。',
-  publicService: '若當事人具公務人員身分，應另依公務人員保障法及公務人員執行職務安全及衛生防護辦法分流處理。',
-  sexual: '涉及性要求、性意味或性別歧視的文字、圖片、貼圖或言行，依場域可能適用性別平等工作法、性騷擾防治法或性別平等教育法。',
-  stalking: '跟蹤騷擾法制通常要求反覆或持續、違反意願、與性或性別有關，並使人心生畏怖且足以影響日常生活或社會活動。',
-  privacy: '個人資料保護法要求蒐集、處理與利用具特定目的、必要性與適法基礎；健康、醫療等資料須特別審慎。',
-  dignity: '侮辱、威脅、散布隱私或貶抑人格，除組織內部責任外，依情節亦可能涉及民事人格權或刑事責任。',
-  campus: '校園事件須依雙方身分與行為類型，分流適用校園霸凌防制準則或性別平等教育法。',
-  client: '對案家、服務對象或家屬的不當言詞，除服務品質與契約風險外，也可能反向形成勞工與第三方職場不法侵害事件。'
+  bullying: '職業安全衛生法第22條之1將職場霸凌連結到職務或權勢關係、逾越業務必要合理範圍、持續的不當言行與身心健康危害；情節重大者，不以持續發生為必要。職場霸凌防治措施準則另要求雇主預防、申訴、調查、保密、保護與後續處理。',
+  publicService: '若當事人具公務人員身分，應另依公務人員保障法及公務人員執行職務安全及衛生防護辦法分流處理，不宜直接套用一般勞工的申訴程序。',
+  sexual: '性別平等工作法第12條將「具有性意味或性別歧視之言詞或行為」造成敵意、脅迫或冒犯性工作環境納入工作場所性騷擾；其他場域則可能依性騷擾防治法或性別平等教育法處理。',
+  stalking: '跟蹤騷擾防制法第3條通常要求對特定人反覆或持續、違反其意願、與性或性別有關，並使其心生畏怖、足以影響日常生活或社會活動；單一粗魯訊息不當然成立跟蹤騷擾。',
+  privacy: '個人資料保護法要求個人資料之蒐集、處理與利用具有特定目的及適法基礎，並限於必要範圍；病歷、醫療、健康等資訊尤應審慎。',
+  dignity: '侮辱、威脅、散布隱私或貶抑人格，除組織內部責任外，依具體情境亦可能涉及民法人格權、侵權責任或刑事責任；本工具不直接判定犯罪成立。',
+  campus: '校園事件須依雙方身分、是否對學生、是否涉及性或性別等因素，分流適用校園霸凌防制準則、性別平等教育法及相關教師或校長處理規範。',
+  client: '對案家、服務對象或家屬的不當言詞，除服務品質、契約與專業倫理風險外，也可能與工作者遭第三方不法侵害之職安議題交錯，應保留服務界線但避免羞辱。',
+  equality: '若言詞以性別、性傾向、年齡、族群、國籍、身心障礙或其他受保障身分作為羞辱或不利處理依據，應另檢查性別平等工作法、就業服務法及其他反歧視規範。',
+  employment: '解僱、資遣、調動、排班、減薪、考績或其他人事措施應有適法依據並循正式程序。勞動基準法第10條之1、第11條、第12條等規範調動及終止契約；勞工依法申訴時，第74條並禁止報復性不利處分。'
 };
 
 const RISK_RULES = [
+  {
+    id: 'profanity-directed',
+    category: '直接辱罵或粗鄙人身攻擊',
+    severity: 'severe',
+    weight: 30,
+    regex: /(幹[\s·・._*＊xX-]*[你妳您]?[\s·・._*＊xX-]*(?:娘|媽|老母)|幹你|幹妳|操[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)|肏[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)|雞掰|機掰|靠北|靠夭|他媽的|媽的|王八蛋|混蛋|畜生|賤人|垃圾人|廢物|白痴|智障|腦殘|低能|去死|欠罵|不要臉)/giu,
+    reason: '這類文字不是工作內容、事實或可執行指示，而是直接攻擊人格。即使單一訊息尚不足以直接認定職場霸凌成立，也可能成為不當言行、敵意環境、人格權侵害或後續申訴的重要證據。',
+    legal: ['bullying', 'dignity'],
+    replace: ''
+  },
+  {
+    id: 'gender-slur',
+    category: '性別貶抑或性別辱罵',
+    severity: 'severe',
+    weight: 32,
+    regex: /(死\s*查某|臭\s*查某|死\s*三八|臭\s*三八|婊子|臭婊|母豬|死娘炮|娘炮|男人婆|死gay|同性戀噁心|女人就是沒用|男人就是廢物)/giu,
+    reason: '以性別、性別氣質或性傾向作為羞辱工具，已超出一般工作糾正或管理必要範圍；依場域與權勢關係，可能同時涉及職場霸凌、性別歧視或性騷擾法制。',
+    legal: ['bullying', 'sexual', 'equality', 'dignity'],
+    replace: ''
+  },
   {
     id: 'severe-insult',
     category: '侮辱或人格貶抑',
     severity: 'severe',
     weight: 24,
-    regex: /(白痴|智障|腦殘|廢物|垃圾|有病|神經病|沒救|去死|閉嘴|滾蛋|滾開|欠罵|不要臉|噁心|低能)/giu,
+    regex: /(有病|神經病|沒救|閉嘴|滾蛋|滾開|噁心|蠢貨|豬腦|沒腦|腦袋有洞|智商有問題)/giu,
     reason: '將工作問題轉化為對人格、能力或身心狀態的貶抑，容易造成敵意或冒犯性環境，也會讓正式紀錄失焦。',
     legal: ['bullying', 'dignity'],
     replace: ''
   },
   {
+    id: 'employment-retaliation-threat',
+    category: '以解僱、排班、減薪或考績作為威嚇',
+    severity: 'severe',
+    weight: 30,
+    regex: /((?:信不信|你再|再不|如果你再|不然|否則|敢再|給我)[^。！？!?；;\n]{0,24}(?:開除|解僱|資遣|開掉|把[你妳]開了|讓[你妳]走|不用來|不排班|減薪|降職|調職|記過|考績(?:打|給)?(?:差|丙|丁))|(?:明天|今天|現在|馬上)[^。！？!?；;\n]{0,16}(?:把[你妳]?(?:開除|開掉|開了)|叫[你妳]?(?:走|滾)|不用來)|把[你妳](?:開除|開掉|開了))/giu,
+    reason: '把人事處分當成情緒性威嚇，沒有交代事實、法定或契約依據、權限與程序，容易形成權勢壓迫或報復性處分爭議。人事處置應另循正式程序，不應夾在怒斥訊息中。',
+    legal: ['bullying', 'employment', 'dignity'],
+    replace: '如涉及工作表現或人事處置，將依具體事實、既定規範及正式程序另行處理。'
+  },
+  {
+    id: 'dismissal-threat',
+    category: '缺乏程序的人事處分語句',
+    severity: 'severe',
+    weight: 22,
+    regex: /(不想做就離職|不爽就離職|明天不用來|不用來了|給我滾出公司|不配合就不排班|再不回(?:我)?就(?:不用|不再)(?:服務|排班|來|合作)(?:你|您)?(?:了)?)/giu,
+    reason: '直接用工作存續、排班或服務安排壓迫對方，未區分事實、程序與合法權限。若確實需要調整工作或服務，應以客觀理由及正式程序處理。',
+    legal: ['bullying', 'employment', 'dignity'],
+    replace: '如涉及工作或服務安排調整，將依既定程序另行通知，並提供必要說明。'
+  },
+  {
     id: 'threat',
     category: '威脅或不當施壓',
     severity: 'severe',
-    weight: 24,
-    regex: /(你給我小心|我不會放過你|讓你混不下去|弄死你|打死你|知道你住哪|等你下班|走著瞧|讓你後悔|你試試看|有你好看)/giu,
-    reason: '使用安全、人身、工作存續或報復暗示迫使對方服從，可能超出管理必要範圍，並產生恐懼與證據風險。',
+    weight: 28,
+    regex: /(你給我小心|我不會放過你|讓你混不下去|弄死你|打死你|知道你住哪|等你下班|走著瞧|讓你後悔|你試試看|有你好看|信不信我(?:弄|修理|處理)你)/giu,
+    reason: '以人身安全、工作存續、報復或其他不利益暗示迫使對方服從，可能超出管理必要範圍並造成恐懼。',
     legal: ['bullying', 'stalking', 'dignity'],
     replace: ''
   },
   {
-    id: 'dismissal-threat',
-    category: '以解僱或排班作為即時威嚇',
-    severity: 'severe',
-    weight: 20,
-    regex: /(不想做就離職|不爽就離職|不用來了|明天不用來|給我滾出公司|不配合就不排班|再不回(?:我)?就(?:不用|不再)(?:服務|排班|來|合作)(?:你|您)?(?:了)?)/giu,
-    reason: '將人事處分當成情緒性威嚇，未區分事實、程序、權限與申辯機會，可能形成權勢壓迫或不利處分爭議。',
+    id: 'belittling-rhetorical',
+    category: '羞辱式反問或嘲弄',
+    severity: 'moderate',
+    weight: 16,
+    regex: /(你是時空穿越(?:了)?嗎|你是活在(?:古代|清朝|上個世紀)嗎|你從哪個年代來的|現在幾年了你知道嗎|你是在裝傻嗎|你有沒有常識|你有沒有腦|腦袋還在睡嗎)/giu,
+    reason: '這類反問沒有提供可核對的事實、標準或修正方法，主要效果是嘲弄對方能力或常識。應改成指出具體落差與要求修正的內容。',
     legal: ['bullying', 'dignity'],
-    replace: '如涉及工作或服務安排調整，將依既定程序另行通知，並提供必要說明。'
+    replace: ''
   },
   {
     id: 'sexual',
     category: '性或性別相關不當言詞',
     severity: 'severe',
-    weight: 26,
-    regex: /(身材真好|胸部|屁股|陪睡|上床|約炮|親一個|寶貝|老婆大人|老公大人|美女陪我|帥哥陪我|性能力|月經來喔|娘娘腔|男人婆|死gay|同性戀噁心)/giu,
+    weight: 28,
+    regex: /(身材真好|胸部|屁股|陪睡|上床|約炮|親一個|寶貝|老婆大人|老公大人|美女陪我|帥哥陪我|性能力|月經來喔)/giu,
     reason: '與工作或服務無關的性、身體或性別評論，可能造成敵意、冒犯或權勢性騷擾風險；貼圖或表情符號亦可能構成言行的一部分。',
     legal: ['sexual', 'dignity'],
     replace: ''
   },
   {
     id: 'persistent-contact',
-    category: '持續聯絡或追蹤暗示',
+    category: '持續聯絡、守候或追蹤暗示',
     severity: 'severe',
-    weight: 18,
-    regex: /(我會一直傳到你回|每天找你|一直打給你|不回就一直傳|我會去你家|我知道你在哪|跟到你回覆|堵你|守在你家|守在公司)/giu,
-    reason: '反覆通訊、到住居所或工作場所守候、掌握行蹤等內容，可能讓對方心生畏怖；應立即停止非必要接觸並改走正式管道。',
+    weight: 22,
+    regex: /(我會一直傳到你回|每天找你|一直打給你|不回就一直傳|我會去你家|我知道你在哪|跟到你回覆|堵你|守在你家|守在公司|一直等到你出現)/giu,
+    reason: '反覆通訊、到住居所或工作場所守候、掌握行蹤等內容，可能讓對方心生畏怖；應停止非必要接觸並改走正式聯絡管道。',
     legal: ['stalking', 'privacy', 'dignity'],
     replace: '後續請僅透過正式聯絡管道處理相關事項。'
   },
@@ -185,7 +233,7 @@ const RISK_RULES = [
     id: 'public-shaming',
     category: '公開羞辱或揭露隱私',
     severity: 'severe',
-    weight: 20,
+    weight: 24,
     regex: /(我要讓大家知道|丟到群組讓大家看|公布你的|公開你的|把你資料貼出來|讓全公司看笑話|告訴所有人你的事)/giu,
     reason: '將個人錯誤、申訴、健康、家庭或身分資訊公開，可能逾越業務必要範圍，並侵害隱私、名譽與個資權益。',
     legal: ['bullying', 'privacy', 'dignity'],
@@ -195,11 +243,61 @@ const RISK_RULES = [
     id: 'discrimination',
     category: '歧視或身分貶抑',
     severity: 'severe',
-    weight: 22,
-    regex: /(外勞就是|原住民就是|老人都|年輕人都|女人就是|男人就是|殘障|跛子|瞎子|聾子|死胖子|肥婆|老女人|老頭子|低端人口)/giu,
+    weight: 24,
+    regex: /(外勞就是|原住民就是|老人都沒用|年輕人都沒用|女人就是|男人就是|殘障|跛子|瞎子|聾子|死胖子|肥婆|老女人|老頭子|低端人口)/giu,
     reason: '以性別、年齡、族群、國籍、身心狀態或其他身分作為羞辱與差別待遇依據，可能涉及平等、就業歧視與人格權風險。',
-    legal: ['bullying', 'sexual', 'dignity'],
+    legal: ['bullying', 'equality', 'sexual', 'dignity'],
     replace: ''
+  },
+  {
+    id: 'exclusion-isolation',
+    category: '刻意排擠、冷落或阻斷參與',
+    severity: 'moderate',
+    weight: 16,
+    regex: /(大家(?:都)?不要理(?:他|她|你|妳)|不要讓(?:他|她|你|妳)(?:知道|參加|進來|進群組)|故意不通知(?:他|她|你|妳)|把(?:他|她|你|妳)踢出群組|這件事不要找(?:他|她|你|妳))/giu,
+    reason: '職場霸凌防治規範明列刻意排擠、忽視、冷落或不讓特定人參與必要重要會議、事務或活動等情形。若確有權限、保密或分工理由，應把客觀理由寫清楚，而不是以孤立為目的。',
+    legal: ['bullying', 'dignity'],
+    replace: '如基於分工、權限或保密需要調整參與範圍，請依客觀標準與正式程序辦理並說明理由。'
+  },
+  {
+    id: 'information-sabotage',
+    category: '刻意隱瞞資訊或妨礙工作',
+    severity: 'severe',
+    weight: 24,
+    regex: /(不要把(?:資料|資訊|版本|通知)給(?:他|她|你|妳)|故意不給(?:他|她|你|妳)(?:資料|資訊)|給(?:他|她|你|妳)錯的(?:資料|版本|時間)|就讓(?:他|她|你|妳)不知道|看(?:他|她|你|妳)怎麼出包)/giu,
+    reason: '刻意隱瞞必要資訊、提供錯誤資訊或阻礙工作，屬職場霸凌規範特別要求審酌的行為樣態之一。合法的權限控管應有業務理由與一致標準。',
+    legal: ['bullying', 'dignity'],
+    replace: '請依職務權限與工作需要提供正確且必要的資訊；如有資訊限制，請說明適用理由與範圍。'
+  },
+  {
+    id: 'unreasonable-workload',
+    category: '以權勢分派明顯不合理工作',
+    severity: 'moderate',
+    weight: 16,
+    regex: /(全部丟給(?:你|妳)(?:一個人)?做|這些都(?:你|妳)一個人扛|做不完不准下班|今晚全部給我做完|不管工作量.*(?:你|妳)都要做完|故意給(?:你|妳)做不完)/giu,
+    reason: '利用職務或權勢刻意設定不合理目標，或分派與能力明顯不符的工作，是職場霸凌規範明列的審酌態樣。急件或高負荷工作應交代理由、優先順序、資源與合理期限。',
+    legal: ['bullying'],
+    replace: '請依工作優先順序與可用資源辦理；如工作量或期限確有困難，請立即提出，以便調整分工與時程。'
+  },
+  {
+    id: 'complaint-retaliation',
+    category: '申訴、檢舉或求助後的報復威嚇',
+    severity: 'severe',
+    weight: 34,
+    regex: /((?:敢|再敢|你敢)(?:去)?(?:申訴|檢舉|投訴|告我|告公司)[^。！？!?；;\n]{0,24}(?:開除|不排班|減薪|調職|記過|整你|讓你走|有你好看)|(?:申訴|檢舉|投訴)就[^。！？!?；;\n]{0,20}(?:開除|不排班|減薪|調職|記過|讓你走)|去申訴啊[^。！？!?；;\n]{0,20}(?:看你|試試看))/giu,
+    reason: '以申訴、檢舉、作證、協助申訴或求助為由暗示解僱、減薪、降調、排班不利益或其他報復，與職場霸凌、性騷擾及一般勞動法制的禁止報復原則直接衝突。',
+    legal: ['bullying', 'employment', 'sexual', 'dignity'],
+    replace: '申訴、檢舉或尋求協助屬正式權利，相關人員不得因此受到報復或其他不利待遇；後續事項請依正式程序處理。'
+  },
+  {
+    id: 'complaint-confidentiality',
+    category: '揭露申訴人或調查資訊',
+    severity: 'severe',
+    weight: 26,
+    regex: /(公布(?:申訴人|檢舉人|誰告的)|把(?:申訴內容|檢舉內容|調查內容)丟到群組|讓大家知道誰(?:申訴|檢舉|告狀)|我把誰告的說出來|大家看看是誰(?:申訴|檢舉))/giu,
+    reason: '職場霸凌及性騷擾申訴調查均重視不公開處理、身分保密與避免報復。非基於必要而揭露申訴人、協助者或調查資訊，可能造成二次傷害與程序風險。',
+    legal: ['bullying', 'sexual', 'privacy', 'dignity'],
+    replace: '申訴與調查資訊僅應於法定或業務必要範圍內由有權人員處理，請勿向無關人員揭露。'
   },
   {
     id: 'client-rudeness',
@@ -224,6 +322,15 @@ const RISK_RULES = [
     legal: ['bullying'],
     replace: '此事項具有時效性，請優先處理；如期限確有困難，請立即說明，以便調整安排。'
   }
+];
+
+// 第二層防漏：不是拿來作法律認定，而是避免建議版本仍把明顯辱罵、性別羞辱或威嚇原樣帶出去。
+const RESIDUAL_BLOCK_RULES = [
+  /幹[\s·・._*＊xX-]*[你妳您]?[\s·・._*＊xX-]*(?:娘|媽|老母)|幹你|幹妳|操[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)|肏[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)/iu,
+  /死\s*查某|臭\s*查某|死\s*三八|婊子|母豬|死娘炮|同性戀噁心/iu,
+  /白痴|智障|腦殘|低能|廢物|去死|滾蛋|滾開|有病|神經病/iu,
+  /信不信[^。！？!?；;\n]{0,24}(?:開除|解僱|資遣|開掉|把[你妳]開了|弄死|打死|修理你|讓你後悔)/iu,
+  /你是時空穿越(?:了)?嗎|你是活在(?:古代|清朝|上個世紀)嗎/iu
 ];
 
 const PII_RULES = [
@@ -280,7 +387,7 @@ const PII_RULES = [
 
 const HEALTH_TERMS = /(診斷|病歷|病史|精神科|身心科|失智|憂鬱症|躁鬱症|癌症|愛滋|HIV|懷孕|流產|身心障礙|用藥|處方|手術|住院|急診|血壓|血糖|心衰竭|心律不整)/giu;
 const STICKER_REGEX = /(\[貼圖\]|【貼圖】|\(貼圖\)|〈貼圖〉|\[sticker\]|<sticker>|貼圖一張)/giu;
-const EMOJI_REGEX = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu;
+const EMOJI_REGEX = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\uFE0F\u200D\u20E3]/gu;
 const EXCESSIVE_PUNCTUATION = /([!?！？])\1{1,}/gu;
 
 const TEMPLATE_BY_PURPOSE = {
@@ -409,7 +516,7 @@ function handleAnalyze() {
 }
 
 function analyzeMessage(raw, options) {
-  let safeText = raw.normalize('NFC');
+  let safeText = raw.normalize('NFKC').replace(/[\u200B\u200C\u2060\uFEFF]/gu, '');
   const findings = [];
   const uniqueFindingKeys = new Set();
   let removedCount = 0;
@@ -556,13 +663,33 @@ function analyzeMessage(raw, options) {
 
   if (!safeText) safeText = buildFallbackMessage(options, '');
 
+  const residualHits = [];
+  for (const residualRule of RESIDUAL_BLOCK_RULES) {
+    const hit = safeText.match(residualRule);
+    if (hit) residualHits.push(hit[0]);
+  }
+  if (residualHits.length) {
+    const uniqueResiduals = [...new Set(residualHits)];
+    score += 40;
+    removedCount += uniqueResiduals.length;
+    addFinding({
+      type: 'tone',
+      title: '防漏攔截：建議版本仍含明顯不當字詞',
+      severity: 'severe',
+      fragment: uniqueResiduals.slice(0, 5).join('、'),
+      reason: '第一輪規則處理後仍偵測到明顯辱罵、性別羞辱、威嚇或嘲弄語句。為避免系統把高風險原句重新輸出，已捨棄殘留內容並改用中性模板。',
+      legalNotes: [LEGAL_NOTES.bullying, LEGAL_NOTES.sexual, LEGAL_NOTES.dignity]
+    });
+    safeText = buildFallbackMessage(options, '');
+  }
+
   score = Math.min(100, score);
   const level = score >= 55 ? 'high' : score >= 20 ? 'medium' : 'low';
   const label = level === 'high' ? '高風險：建議重寫後再傳送' : level === 'medium' ? '中度風險：建議確認脈絡' : '較低風險：仍請人工確認';
 
   if (!findings.length) {
     findings.push({
-      type: 'tone',
+      type: 'system',
       title: '未發現明顯關鍵字風險',
       severity: 'info',
       fragment: '無',
@@ -658,7 +785,7 @@ function renderResult(result) {
   $('safeText').value = result.safeText;
   $('riskBadge').className = `risk-badge ${result.level}`;
   $('riskBadge').textContent = `${result.label}（${result.score}）`;
-  $('findingCount').textContent = result.findings.filter(item => item.type === 'tone').length;
+  $('findingCount').textContent = result.findings.filter(item => item.type === 'tone' && item.severity !== 'info').length;
   $('privacyCount').textContent = result.privacyCount;
   $('removedCount').textContent = result.removedCount;
   $('copyStatus').textContent = '';
