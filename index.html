@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="純前端、零上傳的職場與服務溝通風險檢核器。協助移除不當語氣、表情符號與非必要個資，產生可直接複製的較安全版本。">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
+  <meta name="color-scheme" content="light dark">
+  <title>訊息溝通風險檢核器</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">跳至主要內容</a>
+
+  <noscript>
+    <div class="noscript">本網站需要 JavaScript 才能在瀏覽器本機分析文字；不會將內容傳送至伺服器。</div>
+  </noscript>
+
+  <section id="introScreen" class="intro-screen" aria-labelledby="introTitle">
+    <div class="intro-shell">
+      <header class="intro-header">
+        <div>
+          <p class="eyebrow">使用前法制說明</p>
+          <h1 id="introTitle">中華民國的跟蹤、騷擾與霸凌，不是同一套法律</h1>
+          <p class="lead">同一句不當訊息，可能依發生場域、雙方身分、權勢關係、是否持續，以及是否與性或性別有關，而分別適用不同制度。請先閱讀，再進入文字檢核功能。</p>
+        </div>
+        <div class="privacy-badges" aria-label="隱私設計">
+          <span>純前端</span><span>零上傳</span><span>無追蹤</span><span>不留存內容</span>
+        </div>
+      </header>
+
+      <div class="legal-map" role="list" aria-label="法制分流">
+        <article role="listitem" class="law-card">
+          <h2>一般勞動職場霸凌</h2>
+          <p>勞工在勞動場所執行職務，因事業單位人員利用職務或權勢，逾越業務必要且合理範圍，持續以冒犯、威脅、冷落、孤立、侮辱或其他不當言行，致身心健康受危害；情節重大者，不以持續發生為必要。</p>
+          <p class="law-path">主要法源：職業安全衛生法第22條之1至第22條之3、職場霸凌防治措施準則。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>公務人員職場霸凌</h2>
+          <p>公務人員有另行的安全衛生防護與申訴處理制度，不能只套用一般勞工程序。機關須設防護機制、採取立即保護措施，並依規定調查與決定。</p>
+          <p class="law-path">主要法源：公務人員保障法、公務人員執行職務安全及衛生防護辦法。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>工作場所性騷擾</h2>
+          <p>執行職務時出現性要求、性意味或性別歧視言詞、圖片、貼圖或動作，造成敵意、脅迫或冒犯性工作環境，通常依工作場域的性騷擾制度處理。</p>
+          <p class="law-path">主要法源：性別平等工作法、工作場所性騷擾防治措施準則。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>一般場所性騷擾</h2>
+          <p>不屬職場或校園特別制度時，違反意願、與性或性別有關，且損害人格尊嚴或造成畏怖、敵意、冒犯情境的行為，可能適用一般性騷擾防治制度。</p>
+          <p class="law-path">主要法源：性騷擾防治法及其相關準則。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>跟蹤騷擾</h2>
+          <p>對特定人反覆或持續為違反其意願、與性或性別有關的監視、尾隨、威脅貶抑、通訊干擾、不當追求、寄送物品、散布名譽訊息或濫用個資，並使人心生畏怖、足以影響日常生活或社會活動，才進入跟蹤騷擾法制。</p>
+          <p class="law-path">主要法源：跟蹤騷擾防制法；家庭或親密關係案件另須注意家庭暴力防治法。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>校園霸凌與校園性別事件</h2>
+          <p>對學生持續以言語、文字、圖畫、符號、電子通訊或其他方式貶抑、排擠、欺負、騷擾或戲弄，與涉及性或性別的事件，應依身分與事件類型分流，不宜混成同一程序。</p>
+          <p class="law-path">主要法源：校園霸凌防制準則、性別平等教育法。</p>
+        </article>
+      </div>
+
+      <section class="intro-notice" aria-labelledby="noticeTitle">
+        <h2 id="noticeTitle">這個網站能做什麼，以及不能做什麼</h2>
+        <div class="notice-grid">
+          <div>
+            <h3>可以協助</h3>
+            <p>在送出訊息前，辨識辱罵、威脅、嘲諷、權勢壓迫、性或性別言詞、持續聯絡暗示、揭露隱私、非必要個資、表情符號與貼圖標記，並產生較中性、可留下正式紀錄的版本。</p>
+          </div>
+          <div>
+            <h3>不能取代</h3>
+            <p>網站不會認定某人已違法、成立霸凌或成立性騷擾。法律判斷仍須結合背景、頻率、場域、權勢關係、工作必要性、主觀意願、客觀影響與證據，由有權機關或專業人員處理。</p>
+          </div>
+        </div>
+      </section>
+
+      <details class="source-details">
+        <summary>查看官方法規與資料來源</summary>
+        <ul>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0060001" target="_blank" rel="noopener noreferrer">職業安全衛生法</a></li>
+          <li><a href="https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL106701" target="_blank" rel="noopener noreferrer">職場霸凌防治措施準則</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0060009" target="_blank" rel="noopener noreferrer">職業安全衛生設施規則</a></li>
+          <li><a href="https://www.osha.gov.tw/48110/48713/48735/135152/" target="_blank" rel="noopener noreferrer">執行職務遭受不法侵害預防指引（第五版）</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=A0030050" target="_blank" rel="noopener noreferrer">公務人員執行職務安全及衛生防護辦法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=N0030014" target="_blank" rel="noopener noreferrer">性別平等工作法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030019" target="_blank" rel="noopener noreferrer">工作場所性騷擾防治措施準則</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=D0050074" target="_blank" rel="noopener noreferrer">性騷擾防治法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0080211" target="_blank" rel="noopener noreferrer">跟蹤騷擾防制法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=H0020081" target="_blank" rel="noopener noreferrer">校園霸凌防制準則</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0080067" target="_blank" rel="noopener noreferrer">性別平等教育法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=I0050021" target="_blank" rel="noopener noreferrer">個人資料保護法</a></li>
+        </ul>
+        <p class="updated">法規頁面與說明最後查核：2026年8月7日。使用時仍應以主管機關最新公布內容為準。</p>
+      </details>
+
+      <div class="intro-consent">
+        <label class="check-row" for="hideIntroSession">
+          <input id="hideIntroSession" type="checkbox">
+          <span>我已閱讀；在這個分頁關閉前，不再顯示本說明</span>
+        </label>
+        <button id="enterAppButton" class="primary-button" type="button">確認並進入功能頁</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell" hidden>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">瀏覽器本機處理</p>
+        <h1>訊息溝通風險檢核器</h1>
+        <p>貼上準備傳送的內容，取得可直接複製的較安全版本，以及逐項修改理由。</p>
+      </div>
+      <div class="header-actions">
+        <button id="showIntroButton" class="ghost-button" type="button">重新閱讀法制說明</button>
+        <button id="showPrivacyButton" class="ghost-button" type="button">隱私與技術說明</button>
+      </div>
+    </header>
+
+    <main id="mainContent" class="main-layout">
+      <section class="panel input-panel" aria-labelledby="inputTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="step-label">步驟一</p>
+            <h2 id="inputTitle">貼上原始訊息</h2>
+          </div>
+          <button id="loadExampleButton" class="text-button" type="button">載入示例</button>
+        </div>
+
+        <div class="field-grid">
+          <label>
+            <span>對方身分</span>
+            <select id="audienceSelect">
+              <option value="coworker">同事或部屬</option>
+              <option value="supervisor">主管</option>
+              <option value="client">案家、服務對象或家屬</option>
+              <option value="student">學生、家長或受訓者</option>
+              <option value="public">一般民眾或外部合作對象</option>
+            </select>
+          </label>
+          <label>
+            <span>溝通目的</span>
+            <select id="purposeSelect">
+              <option value="remind">提醒或催辦</option>
+              <option value="correct">指出錯誤或要求修正</option>
+              <option value="rule">說明規則或界線</option>
+              <option value="refuse">拒絕不合理要求</option>
+              <option value="schedule">排班、分工或服務安排</option>
+              <option value="general">一般溝通</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="textarea-label" for="sourceText">
+          <span>準備傳送的內容</span>
+          <textarea id="sourceText" rows="12" maxlength="8000" placeholder="例如：你到底要講幾次才懂？再不回我就不用來了！😡 [貼圖] 王小明的電話是0912345678，大家自己看著辦。"></textarea>
+        </label>
+        <div class="textarea-meta">
+          <span id="charCount">0 / 8000</span>
+          <span>內容只存在目前頁面的記憶體，不會送出。</span>
+        </div>
+        <p id="pasteNotice" class="paste-notice" role="status" hidden>偵測到剪貼簿內含圖片或貼圖。本網站不會讀取、上傳或保存圖片；分析時會將「使用貼圖」列為溝通風險提醒。</p>
+
+        <fieldset class="option-box">
+          <legend>檢核設定</legend>
+          <label><input id="removeEmojiOption" type="checkbox" checked> 移除表情符號、貼圖標記與過度標點</label>
+          <label><input id="maskPiiOption" type="checkbox" checked> 遮罩明顯的身分證字號、電話、電子郵件、地址與病歷號</label>
+          <label><input id="recordableToneOption" type="checkbox" checked> 改為可供正式紀錄的事實、影響、請求與期限語氣</label>
+        </fieldset>
+
+        <div class="button-row">
+          <button id="analyzeButton" class="primary-button" type="button">產生可複製版本</button>
+          <button id="clearButton" class="secondary-button" type="button">清除全部</button>
+        </div>
+        <p id="inputError" class="error-message" role="alert" hidden></p>
+      </section>
+
+      <section id="resultPanel" class="panel result-panel" aria-labelledby="resultTitle" aria-live="polite">
+        <div class="panel-heading">
+          <div>
+            <p class="step-label">步驟二</p>
+            <h2 id="resultTitle">較安全、可直接複製的版本</h2>
+          </div>
+          <div id="riskBadge" class="risk-badge neutral">尚未檢核</div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+          <h3>尚未產生結果</h3>
+          <p>左側貼上訊息後，系統會在瀏覽器本機完成規則式分析，不使用雲端模型或後端服務。</p>
+        </div>
+
+        <div id="resultContent" hidden>
+          <label class="textarea-label" for="safeText">
+            <span>建議版本</span>
+            <textarea id="safeText" rows="10" readonly></textarea>
+          </label>
+          <div class="button-row compact">
+            <button id="copyButton" class="primary-button" type="button">複製建議版本</button>
+            <button id="copyWithNotesButton" class="secondary-button" type="button">連同備註複製</button>
+          </div>
+          <p id="copyStatus" class="copy-status" role="status"></p>
+
+          <section class="summary-strip" aria-label="檢核摘要">
+            <div><span id="findingCount">0</span><small>項語氣風險</small></div>
+            <div><span id="privacyCount">0</span><small>項個資提醒</small></div>
+            <div><span id="removedCount">0</span><small>項已移除或遮罩</small></div>
+          </section>
+
+          <section aria-labelledby="reasonTitle">
+            <div class="subheading">
+              <h3 id="reasonTitle">為何不宜這樣說</h3>
+              <p>以下是風險提示，不是違法或成立霸凌的法律認定。</p>
+            </div>
+            <div id="findingList" class="finding-list"></div>
+          </section>
+
+          <details class="limitations" open>
+            <summary>判讀限制與使用界線</summary>
+            <p>單一訊息通常不足以判斷職場霸凌、性騷擾或跟蹤騷擾是否成立。請保留完整對話、時間、對象、工作指示、回應、傳送頻率與其他背景；若已發生安全威脅、持續騷擾、報復或重大身心危害，應循組織申訴、主管機關、警察或專業法律協助處理。</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <section class="legal-reference-section" aria-labelledby="legalRefTitle">
+      <div class="section-heading">
+        <p class="eyebrow">法規檢核範圍</p>
+        <h2 id="legalRefTitle">網站納入的主要法律風險</h2>
+        <p>並非每項法規都會同時適用；應依身分、場域與行為態樣分流。</p>
+      </div>
+      <div id="legalReferenceGrid" class="reference-grid"></div>
+    </section>
+
+    <footer class="site-footer">
+      <p>本工具採規則式文字處理，目的在於降低傳送前的溝通與個資風險，不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
+      <p>版本 1.0.0｜法規查核日期：2026年8月7日｜無第三方程式庫、分析工具、Cookie 或網路請求。</p>
+    </footer>
+  </div>
+
+  <dialog id="privacyDialog" class="privacy-dialog" aria-labelledby="privacyTitle">
+    <div class="dialog-head">
+      <h2 id="privacyTitle">隱私、資訊安全與低耗能設計</h2>
+      <button id="closePrivacyButton" class="icon-button" type="button" aria-label="關閉">×</button>
+    </div>
+    <div class="dialog-body">
+      <h3>零後端</h3>
+      <p>網站沒有帳號、資料庫、API、雲端模型、分析追蹤或廣告程式。內容分析只在目前瀏覽器執行。</p>
+      <h3>資料最小化</h3>
+      <p>原始文字與結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有「本分頁是否略過法制說明」會以 sessionStorage 記錄；關閉分頁後即失效。</p>
+      <h3>網路封鎖</h3>
+      <p>頁面以 Content Security Policy 將 connect-src 設為 none，程式不使用 fetch、XMLHttpRequest、WebSocket 或第三方資源。</p>
+      <h3>低耗能</h3>
+      <p>使用小型規則引擎，不下載大型模型、不進行伺服器推論，也不持續背景運算。分析只在按下按鈕時執行。</p>
+      <h3>仍須注意</h3>
+      <p>若使用共用電腦、瀏覽器外掛、剪貼簿同步或作業系統雲端剪貼簿，仍可能產生額外風險。貼入前宜先自行刪除非必要姓名、地址、病歷與聯絡資料。</p>
+    </div>
+  </dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
