@@ -1,11 +1,16 @@
 'use strict';
 
-global.document = { addEventListener() {} };
-const { analyzeMessage } = require('./app.js');
+const {
+  analyzeMessage,
+  scanCorpus,
+  sanitizeOutputField,
+  composeSafeMessage,
+  CORPUS
+} = require('./app.js');
 
-const base = {
+const baseOptions = {
   audience: 'coworker',
-  purpose: 'remind',
+  purpose: 'correct',
   removeEmoji: true,
   maskPii: true,
   recordableTone: true,
@@ -20,97 +25,163 @@ function titles(result) {
   return result.findings.map(item => item.title).join('｜');
 }
 
-// 使用者實際測試案例：四種風險必須全部攔下，建議版本不得殘留原辱罵或威嚇。
-const userCase = analyzeMessage('幹你娘！死查某！你是時空穿越了嗎？信不信明天把你開了？', {
-  ...base,
-  purpose: 'correct'
-});
-assert(userCase.score >= 55, '使用者案例未判為高風險');
-assert(titles(userCase).includes('直接辱罵'), '未辨識直接辱罵');
-assert(titles(userCase).includes('性別貶抑'), '未辨識性別辱罵');
-assert(titles(userCase).includes('羞辱式反問'), '未辨識羞辱式反問');
-assert(titles(userCase).includes('解僱'), '未辨識解僱威嚇');
-for (const phrase of ['幹你娘', '死查某', '時空穿越', '把你開了']) {
-  assert(!userCase.safeText.includes(phrase), `高風險片段仍殘留：${phrase}`);
-}
-assert(userCase.safeText.includes('請協助確認並修正'), '未產生可用的中性改寫');
+// 1. 使用者實驗案例：原始性意味／性別貶抑內容不得進入輸出。
+const experimentalRaw = [
+  '晚上要不要~~~親親',
+  '口交',
+  '綠茶婊',
+  '啪啪啪啦%%%％%%',
+  '要%%%嗎?胸好大。'
+].join('\n');
 
-// 空白與變體不能輕易繞過。
-const obfuscated = analyzeMessage('幹 妳 娘！信不信我明天把妳開除。', base);
-assert(obfuscated.score >= 55, '空白變體未被高風險攔截');
-assert(!obfuscated.safeText.includes('幹 妳 娘'), '空白變體辱罵仍殘留');
-assert(!obfuscated.safeText.includes('開除'), '威嚇式開除仍殘留');
-
-// 原有綜合案例。
-const highRisk = analyzeMessage(
-  '你們家真的很難搞，講幾次才懂？再不回我就不用服務你了！😡 [貼圖] 王小明的電話是0912345678，病歷號A123456，大家自己看著辦。',
-  { ...base, audience: 'client' }
+const experimental = analyzeMessage(
+  experimentalRaw,
+  {
+    topic: '昨日交辦資料的版本與期限',
+    fact: '目前收到的檔案仍缺少附件二，且版本日期與會議確認內容不一致',
+    action: '重新確認附件二並上傳正確版本',
+    deadline: '今天下午 5 時前',
+    reason: '需於明日上午會議前完成彙整，避免後續使用錯誤版本',
+    tone: 'directive'
+  },
+  baseOptions
 );
-assert(!highRisk.safeText.includes('0912345678'), '電話未遮罩');
-assert(!highRisk.safeText.includes('😡'), '表情符號未移除');
-assert(highRisk.privacyCount >= 3, '個資提醒不足');
-assert(highRisk.score >= 55, '高風險訊息未達高風險門檻');
 
-const threat = analyzeMessage('你給我小心，我知道你住哪裡，不回我就每天打給你。', base);
-assert(!threat.safeText.includes('住哪裡'), '威脅內容仍留在建議版本');
-assert(threat.findings.some(item => item.title.includes('威脅')), '未辨識威脅');
+for (const phrase of ['親親', '口交', '綠茶婊', '啪啪啪', '胸好大']) {
+  assert(!experimental.safeText.includes(phrase), `原始高風險用語被帶入輸出：${phrase}`);
+}
+assert(experimental.safeText.includes('附件二'), '使用者新增的實質工作內容未進入建議版本');
+assert(experimental.safeText.includes('今天下午 5 時前'), '期限未進入建議版本');
+assert(experimental.corpusHitCount >= 5, '實驗案例未充分命中離線語料庫');
+assert(experimental.copyable === true, '有完整實質內容時應可複製');
 
-const sexual = analyzeMessage('寶貝身材真好😍，下班陪我。', base);
-assert(!sexual.safeText.includes('身材真好'), '性意味內容仍留在建議版本');
-assert(sexual.findings.some(item => item.title.includes('性或性別')), '未辨識性或性別風險');
+// 2. 原始訊息不能當輸出來源；未填實質內容時不產生可複製版本。
+const noSubstance = analyzeMessage('你到底會不會做事？幹你娘！', {}, baseOptions);
+assert(noSubstance.safeText === '', '未填實質內容時不應產生可複製文字');
+assert(noSubstance.copyable === false, '未填實質內容時複製功能應被阻止');
+assert(noSubstance.outputNotice.includes('原始訊息只用於風險檢核'), '未提示原始訊息與輸出分流');
 
-const sexist = analyzeMessage('死三八，女人就是沒用。', base);
-assert(sexist.score >= 55, '性別貶抑未達高風險');
-assert(!sexist.safeText.includes('死三八'), '性別辱罵仍殘留');
+// 3. 能新增真正想說的工作內容。
+const substantive = analyzeMessage(
+  '你到底在搞什麼？',
+  {
+    topic: '8 月份排班表',
+    fact: '目前週五晚班仍有兩個時段未完成確認',
+    action: '確認可值班人員並回覆排班結果',
+    deadline: '本週三中午 12 時前',
+    reason: '需預留後續協調與替補時間',
+    tone: 'formal'
+  },
+  { ...baseOptions, purpose: 'schedule' }
+);
+assert(substantive.safeText.includes('8 月份排班表'), '工作主題未保留');
+assert(substantive.safeText.includes('兩個時段'), '客觀事實未保留');
+assert(substantive.safeText.includes('確認可值班人員'), '要求行動未保留');
+assert(!substantive.safeText.includes('搞什麼'), '原始怒斥被帶入輸出');
 
-const ridicule = analyzeMessage('你是活在清朝嗎？這也不會？', base);
-assert(ridicule.findings.some(item => item.title.includes('羞辱式反問')), '未辨識年代式嘲弄');
-assert(!ridicule.safeText.includes('清朝'), '嘲弄語句仍殘留');
+// 4. 即使高風險用語被放到「實質內容」，也要二次檢核與清除。
+const dirtySubstance = analyzeMessage(
+  '請處理。',
+  {
+    fact: '你有沒有腦，附件還是少一份',
+    action: '幹你娘，現在把附件補齊',
+    deadline: '下午五點前',
+    reason: '',
+    tone: 'directive'
+  },
+  baseOptions
+);
+assert(dirtySubstance.findings.some(item => item.source === '實質內容'), '實質內容未接受離線語料檢核');
+assert(!dirtySubstance.safeText.includes('有沒有腦'), '實質內容中的能力羞辱未清除');
+assert(!dirtySubstance.safeText.includes('幹你娘'), '實質內容中的辱罵未清除');
 
-const proceduralEmployment = analyzeMessage('如後續查證確有重大違規，將依勞動契約、工作規則及相關程序另行處理。', base);
-assert(!proceduralEmployment.findings.some(item => item.title.includes('解僱') || item.title.includes('人事處分')), '合法程序敘述被錯判為解僱威嚇');
+// 5. 符號與空格拆字不能輕易繞過。
+const obfuscated = scanCorpus('啪%啪%啪，幹 妳 娘，死 查 某。', baseOptions, '原始訊息');
+assert(obfuscated.findings.some(item => item.canonicalPhrase === '啪啪啪'), '百分比拆字未命中');
+assert(obfuscated.findings.some(item => item.canonicalPhrase === '幹妳娘'), '空格拆字辱罵未命中');
+assert(obfuscated.findings.some(item => item.canonicalPhrase === '死查某'), '空格拆字性別辱罵未命中');
 
-const neutral = analyzeMessage('請協助確認明天下午三點前是否能完成表單，如有困難請回覆說明。', base);
-assert(neutral.score === 0, '中性訊息不應被加分');
-assert(neutral.safeText.includes('請協助確認'), '中性訊息遭不當改寫');
-assert(neutral.findings.filter(item => item.type === 'tone' && item.severity !== 'info').length === 0, '中性訊息不應計入語氣風險');
+// 6. 個資只從實質內容經遮罩後進入輸出。
+const pii = analyzeMessage(
+  '請聯絡王小明。',
+  {
+    fact: '王小明的電話是0912345678，病歷號A123456',
+    action: '請確認資料是否需要保留於此訊息',
+    deadline: '',
+    reason: '',
+    tone: 'cooperative'
+  },
+  baseOptions
+);
+assert(!pii.safeText.includes('0912345678'), '實質內容電話未遮罩');
+assert(pii.safeText.includes('【電話已遮罩】'), '電話遮罩標記未出現');
+assert(!pii.safeText.includes('A123456'), '病歷號未遮罩');
+assert(pii.privacyCount >= 2, '個資提醒不足');
 
-const imagePaste = analyzeMessage('請確認明日是否可完成。', { ...base, clipboardImageDetected: true });
-assert(imagePaste.findings.some(item => item.title.includes('剪貼簿圖片')), '未產生圖片貼圖提醒');
+// 7. 正常正式人事程序不能因單純出現「程序」而被誤判。
+const procedural = analyzeMessage(
+  '請確認。',
+  {
+    fact: '如後續查證確有重大違規，將依勞動契約、工作規則及相關程序另行處理',
+    action: '請先提供本次事件的工作紀錄與相關資料',
+    deadline: '三個工作日內',
+    reason: '供後續事實釐清',
+    tone: 'formal'
+  },
+  baseOptions
+);
+assert(!procedural.findings.some(item => item.corpusId === 'PAT-HR-001'), '正常程序敘述被誤判為情緒性解僱威嚇');
 
+// 8. 正常服務界線可直接使用。
+const client = analyzeMessage(
+  '案家很煩。',
+  {
+    topic: '本次服務申請',
+    fact: '目前此項服務不在核定範圍內',
+    action: '請由個案管理師協助確認可使用的後續資源',
+    deadline: '',
+    reason: '需依核定服務內容與相關作業規範辦理',
+    tone: 'cooperative'
+  },
+  { ...baseOptions, audience: 'client', purpose: 'refuse' }
+);
+assert(client.safeText.startsWith('您好，'), '案家訊息未使用適當開頭');
+assert(client.safeText.includes('不在核定範圍內'), '服務界線的實質內容未保留');
+assert(!client.safeText.includes('很煩'), '原始不禮貌用語被帶入');
 
-const obfuscatedPunct = analyzeMessage('幹-妳-娘！', base);
-assert(obfuscatedPunct.score >= 20, '符號拆字辱罵未被辨識');
-assert(!obfuscatedPunct.safeText.includes('娘'), '符號拆字辱罵仍殘留');
+// 9. 離線語料庫結構完整：每筆用語一對一配對警示與法制標籤。
+assert(CORPUS.phraseEntries.length >= 260, '離線高風險用語數量不足');
+assert(CORPUS.patternEntries.length >= 10, '離線結構規則數量不足');
 
-const exclusion = analyzeMessage('這次會議不要讓他知道，大家都不要理他。', base);
-assert(exclusion.findings.some(item => item.title.includes('排擠')), '未辨識刻意排擠');
-assert(!exclusion.safeText.includes('大家都不要理他'), '排擠指示仍殘留');
+const ids = new Set();
+for (const entry of CORPUS.phraseEntries) {
+  assert(entry.id && entry.phrase && entry.warning && entry.safeAction, `語料缺欄位：${JSON.stringify(entry)}`);
+  assert(Array.isArray(entry.legal), `語料缺法制標籤：${entry.id}`);
+  assert(!ids.has(entry.id), `語料代碼重複：${entry.id}`);
+  ids.add(entry.id);
+}
+for (const entry of CORPUS.patternEntries) {
+  assert(entry.id && entry.pattern && entry.warning && entry.safeAction, `結構規則缺欄位：${entry.id}`);
+  assert(!ids.has(entry.id), `語料代碼重複：${entry.id}`);
+  ids.add(entry.id);
+}
 
-const sabotage = analyzeMessage('不要把資料給他，就讓他不知道，看他怎麼出包。', base);
-assert(sabotage.findings.some(item => item.title.includes('隱瞞資訊')), '未辨識資訊妨礙');
-assert(sabotage.score >= 20, '資訊妨礙風險分數不足');
+// 10. composeSafeMessage 的設計不接受 raw 參數，確保輸出來源分流。
+const composed = composeSafeMessage({
+  topic: '測試事項',
+  fact: '目前有一項待確認內容',
+  action: '回覆處理結果',
+  deadline: '明日下午',
+  reason: '供後續彙整',
+  tone: 'directive'
+}, baseOptions);
+assert(composed.text.includes('測試事項'), '組句函式未使用實質內容');
+assert(!composed.text.includes('原始辱罵唯一字串'), '組句函式不應出現不存在的原始訊息');
 
-const workload = analyzeMessage('這些都你一個人扛，做不完不准下班。', base);
-assert(workload.findings.some(item => item.title.includes('不合理工作')), '未辨識不合理工作分派');
-assert(!workload.safeText.includes('不准下班'), '不合理工作威壓仍殘留');
+// 11. 輸出欄位本身的高風險詞清理。
+const cleaned = sanitizeOutputField('請你不要再裝傻，幹你娘，電話0912345678。', baseOptions);
+assert(!cleaned.text.includes('裝傻'), '輸出欄位羞辱詞未清除');
+assert(!cleaned.text.includes('幹你娘'), '輸出欄位辱罵未清除');
+assert(!cleaned.text.includes('0912345678'), '輸出欄位個資未遮罩');
 
-const retaliation = analyzeMessage('你敢去申訴就不排班，去申訴啊看你能怎樣。', base);
-assert(retaliation.score >= 55, '申訴報復未達高風險');
-assert(retaliation.findings.some(item => item.title.includes('報復')), '未辨識申訴報復');
-assert(!retaliation.safeText.includes('不排班'), '報復語句仍殘留');
-
-const confidentiality = analyzeMessage('把申訴內容丟到群組，讓大家知道誰申訴。', base);
-assert(confidentiality.findings.some(item => item.title.includes('申訴人') || item.title.includes('調查資訊')), '未辨識申訴保密風險');
-assert(!confidentiality.safeText.includes('丟到群組'), '申訴揭露語句仍殘留');
-
-const legitimateExclusion = analyzeMessage('本次會議涉及個資與採購評選，未具權限者不列入與會名單，將依權限控管規範辦理。', base);
-assert(!legitimateExclusion.findings.some(item => item.title.includes('排擠')), '合理權限控管被錯判為排擠');
-
-const familyClient = analyzeMessage('您好，目前此項服務不在核定範圍內，如有需求請由個案管理師協助確認後續資源。', { ...base, audience: 'client' });
-assert(familyClient.score === 0, '正常服務界線被錯判');
-
-const emojiSkin = analyzeMessage('你到底在做什麼😡👍🏽！！', base);
-assert(!/[😡👍🏽]/u.test(emojiSkin.safeText), '複合表情符號未完整移除');
-
-console.log('All tests passed.');
+console.log(`All tests passed. Corpus: ${CORPUS.phraseEntries.length} phrases + ${CORPUS.patternEntries.length} patterns.`);

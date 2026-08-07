@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="純前端、零上傳的職場與服務溝通風險檢核器。協助移除不當語氣、表情符號與非必要個資，產生可直接複製的較安全版本。">
+  <meta name="description" content="純前端、零上傳的職場與服務溝通風險檢核器。內建離線高風險用語語料庫，原始訊息只供檢核，可複製版本僅由使用者另填的實質工作內容組成。">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
   <meta name="color-scheme" content="light dark">
@@ -139,9 +139,10 @@
       <div>
         <p class="eyebrow">瀏覽器本機處理</p>
         <h1>訊息溝通風險檢核器</h1>
-        <p>貼上準備傳送的內容，取得可直接複製的較安全版本，以及逐項修改理由。</p>
+        <p>先檢核原始訊息，再填入真正要傳達的工作事實與要求；可複製版本不會自動帶入原始訊息。</p>
       </div>
       <div class="header-actions">
+        <span class="corpus-chip">離線語料庫：<strong id="corpusStats">載入中</strong></span>
         <button id="showIntroButton" class="ghost-button" type="button">重新閱讀法制說明</button>
         <button id="showPrivacyButton" class="ghost-button" type="button">隱私與技術說明</button>
       </div>
@@ -151,8 +152,9 @@
       <section class="panel input-panel" aria-labelledby="inputTitle">
         <div class="panel-heading">
           <div>
-            <p class="step-label">步驟一</p>
+            <p class="step-label">步驟一｜只做風險檢核</p>
             <h2 id="inputTitle">貼上原始訊息</h2>
+            <p class="field-help strong-help">這個欄位只拿來找出高風險用語、表情符號與個資；<strong>不會拿來組成右側可複製版本。</strong></p>
           </div>
           <button id="loadExampleButton" class="text-button" type="button">載入示例</button>
         </div>
@@ -182,24 +184,69 @@
         </div>
 
         <label class="textarea-label" for="sourceText">
-          <span>準備傳送的內容</span>
+          <span>原始訊息（只供檢核）</span>
           <textarea id="sourceText" rows="12" maxlength="8000" placeholder="例如：你到底要講幾次才懂？再不回我就不用來了！😡 [貼圖] 王小明的電話是0912345678，大家自己看著辦。"></textarea>
         </label>
         <div class="textarea-meta">
           <span id="charCount">0 / 8000</span>
-          <span>內容只存在目前頁面的記憶體，不會送出。</span>
+          <span>內容只存在目前頁面的記憶體，不會送出，也不會自動複製到建議版本。</span>
         </div>
         <p id="pasteNotice" class="paste-notice" role="status" hidden>偵測到剪貼簿內含圖片或貼圖。本網站不會讀取、上傳或保存圖片；分析時會將「使用貼圖」列為溝通風險提醒。</p>
+        <section class="substance-box" aria-labelledby="substanceTitle">
+          <div class="substance-heading">
+            <div>
+              <p class="step-label">步驟二｜建立真正要傳達的內容</p>
+              <h3 id="substanceTitle">補上實質工作內容</h3>
+            </div>
+            <span class="source-lock-badge">輸出只讀取這一區</span>
+          </div>
+          <p class="field-help">請把「要處理什麼、目前事實、希望對方做什麼、期限與原因」寫在這裡。這一區會再做一次離線語料庫與個資檢核後，才用來組成可複製版本。</p>
+
+          <label class="textarea-label" for="topicText">
+            <span>事項或工作主題</span>
+            <input id="topicText" type="text" maxlength="160" placeholder="例如：昨日交辦資料的版本與期限">
+          </label>
+
+          <label class="textarea-label" for="factText">
+            <span>客觀事實／目前狀況</span>
+            <textarea id="factText" rows="4" maxlength="1600" placeholder="例如：目前收到的檔案仍缺少附件二，且版本日期與會議確認內容不一致。"></textarea>
+          </label>
+
+          <label class="textarea-label" for="actionText">
+            <span>希望對方完成、停止或確認的行動</span>
+            <textarea id="actionText" rows="3" maxlength="1000" placeholder="例如：重新確認附件二並上傳正確版本。"></textarea>
+          </label>
+
+          <div class="field-grid substance-grid">
+            <label>
+              <span>期限或回覆時間（選填）</span>
+              <input id="deadlineText" type="text" maxlength="240" placeholder="例如：今天下午 5 時前">
+            </label>
+            <label>
+              <span>溝通強度</span>
+              <select id="toneSelect">
+                <option value="cooperative">協調、留有討論空間</option>
+                <option value="directive" selected>明確督導、要求執行</option>
+                <option value="formal">正式嚴正、保留程序</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="textarea-label" for="reasonText">
+            <span>原因、影響或正式程序（選填）</span>
+            <textarea id="reasonText" rows="3" maxlength="1000" placeholder="例如：需於明日上午會議前完成彙整，避免後續使用錯誤版本。"></textarea>
+          </label>
+        </section>
+
 
         <fieldset class="option-box">
           <legend>檢核設定</legend>
           <label><input id="removeEmojiOption" type="checkbox" checked> 移除表情符號、貼圖標記與過度標點</label>
           <label><input id="maskPiiOption" type="checkbox" checked> 遮罩明顯的身分證字號、電話、電子郵件、地址與病歷號</label>
-          <label><input id="recordableToneOption" type="checkbox" checked> 改為可供正式紀錄的事實、影響、請求與期限語氣</label>
         </fieldset>
 
         <div class="button-row">
-          <button id="analyzeButton" class="primary-button" type="button">產生可複製版本</button>
+          <button id="analyzeButton" class="primary-button" type="button">檢核並產生可複製版本</button>
           <button id="clearButton" class="secondary-button" type="button">清除全部</button>
         </div>
         <p id="inputError" class="error-message" role="alert" hidden></p>
@@ -208,7 +255,7 @@
       <section id="resultPanel" class="panel result-panel" aria-labelledby="resultTitle" aria-live="polite">
         <div class="panel-heading">
           <div>
-            <p class="step-label">步驟二</p>
+            <p class="step-label">步驟三｜輸出</p>
             <h2 id="resultTitle">較安全、可直接複製的版本</h2>
           </div>
           <div id="riskBadge" class="risk-badge neutral">尚未檢核</div>
@@ -216,7 +263,7 @@
 
         <div id="emptyState" class="empty-state">
           <h3>尚未產生結果</h3>
-          <p>左側貼上訊息後，系統會在瀏覽器本機完成規則式分析，不使用雲端模型或後端服務。</p>
+          <p>左側原始訊息只做風險檢核；請另外填寫實質工作內容。系統會以內建離線語料庫檢核後，只用實質內容組成可複製版本。</p>
         </div>
 
         <div id="resultContent" hidden>
@@ -224,22 +271,22 @@
             <span>建議版本</span>
             <textarea id="safeText" rows="10" readonly></textarea>
           </label>
+          <p id="outputSourceNotice" class="output-source-notice safe">建議版本只會由實質內容欄位組成。</p>
           <div class="button-row compact">
             <button id="copyButton" class="primary-button" type="button">複製建議版本</button>
-            <button id="copyWithNotesButton" class="secondary-button" type="button">連同備註複製</button>
           </div>
           <p id="copyStatus" class="copy-status" role="status"></p>
 
           <section class="summary-strip" aria-label="檢核摘要">
-            <div><span id="findingCount">0</span><small>項語氣風險</small></div>
+            <div><span id="corpusHitCount">0</span><small>項離線語料命中</small></div>
             <div><span id="privacyCount">0</span><small>項個資提醒</small></div>
-            <div><span id="removedCount">0</span><small>項已移除或遮罩</small></div>
+            <div><span id="blockedCount">0</span><small>項輸出攔截或遮罩</small></div>
           </section>
 
           <section aria-labelledby="reasonTitle">
             <div class="subheading">
               <h3 id="reasonTitle">為何不宜這樣說</h3>
-              <p>以下是風險提示，不是違法或成立霸凌的法律認定。</p>
+              <p>每個命中項目都對應本機離線語料庫代碼、風險警示、較安全處理方式與法制提示；仍不是違法或成立霸凌的法律認定。</p>
             </div>
             <div id="findingList" class="finding-list"></div>
           </section>
@@ -262,8 +309,8 @@
     </section>
 
     <footer class="site-footer">
-      <p>本工具採規則式文字處理，目的在於降低傳送前的溝通與個資風險，不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 1.1.0｜法規查核日期：2026年8月7日｜無第三方程式庫、分析工具、Cookie 或網路請求。</p>
+      <p>本工具採純前端離線語料庫與規則式文字處理，目的在於降低傳送前的溝通與個資風險，不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
+      <p>版本 1.2.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜無後端、無第三方程式庫、無分析追蹤、無 Cookie 或網路請求。</p>
     </footer>
   </div>
 
@@ -273,8 +320,10 @@
       <button id="closePrivacyButton" class="icon-button" type="button" aria-label="關閉">×</button>
     </div>
     <div class="dialog-body">
-      <h3>零後端</h3>
-      <p>網站沒有帳號、資料庫、API、雲端模型、分析追蹤或廣告程式。內容分析只在目前瀏覽器執行。</p>
+      <h3>零後端，但有離線語料庫</h3>
+      <p>網站沒有帳號、伺服器資料庫、API、雲端模型、分析追蹤或廣告程式。高風險用語資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；每筆用語均配對風險警示、較安全處理策略與法制標籤。</p>
+      <h3>原始訊息與輸出完全分流</h3>
+      <p>原始訊息只供風險掃描，程式的輸出組句函式沒有原始訊息參數；可複製版本只讀取「實質工作內容」區塊，避免把原始辱罵、性意味、威脅或其他不當內容重新帶回輸出。</p>
       <h3>資料最小化</h3>
       <p>原始文字與結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有「本分頁是否略過法制說明」會以 sessionStorage 記錄；關閉分頁後即失效。</p>
       <h3>網路封鎖</h3>
@@ -286,6 +335,7 @@
     </div>
   </dialog>
 
+  <script src="risk-corpus.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

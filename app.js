@@ -3,334 +3,80 @@
 const INTRO_SESSION_KEY = 'rmg:intro-acknowledged';
 let clipboardImageDetected = false;
 
+const CORPUS = (() => {
+  if (typeof globalThis !== 'undefined' && globalThis.RISK_CORPUS_DATA) return globalThis.RISK_CORPUS_DATA;
+  if (typeof module !== 'undefined' && module.exports) return require('./risk-corpus.js');
+  throw new Error('離線風險語料庫未載入。');
+})();
+
+const LEGAL_CATALOG = CORPUS.legalCatalog || {};
+const PHRASE_ENTRIES = CORPUS.phraseEntries || [];
+const PATTERN_ENTRIES = (CORPUS.patternEntries || []).map(entry => ({
+  ...entry,
+  regex: new RegExp(entry.pattern, 'giu')
+}));
+
 const LEGAL_REFERENCES = [
   {
-    title: '一般勞工職場霸凌',
-    body: '職場霸凌須審酌職務或權勢關係、業務必要合理範圍、持續性或重大情節，以及身心健康危害。雇主另有預防、申訴、調查、保護與禁止報復義務。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0060001',
+    title: '職場霸凌核心法制',
+    body: '職場霸凌須綜合職務或權勢關係、業務必要且合理範圍、持續性或重大情節，以及對身心健康的危害。雇主另有預防、申訴、調查、保護、保密與禁止報復義務。',
+    href: 'https://laws.mol.gov.tw/FLAW/PrintFLAWDOC01.aspx?flno=22-1&id=FL015013',
     link: '職業安全衛生法第22條之1至第22條之3'
   },
   {
-    title: '人事處分、調動與申訴報復',
-    body: '解僱、資遣、調動、減薪、考績或其他人事措施應依勞動法令與正式程序處理；勞工依法申訴時，並有禁止報復性不利處分的保障。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001',
-    link: '勞動基準法第10條之1、第11條、第12條、第74條'
-  },
-  {
-    title: '職場霸凌程序準則',
-    body: '包含防治措施、申訴管道、受理、調查、迴避、申復、保密、紀錄保存與不同事業規模的處理要求。',
+    title: '職場霸凌防治與調查程序',
+    body: '準則明列排擠冷落、妨礙工作、權勢欺壓、不合理工作分派、散布謠言或揭露隱私等審酌態樣，並規範申訴、調查、迴避、申復、保密、反報復與紀錄保存。',
     href: 'https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL106701',
     link: '職場霸凌防治措施準則'
   },
   {
-    title: '職場不法侵害',
-    body: '對服務對象、顧客或其他第三方造成的言語、心理或身體不法侵害，仍須依職安法一般規範及設施規則採取預防與處理措施。',
-    href: 'https://www.osha.gov.tw/48110/48713/48735/135152/',
-    link: '執行職務遭受不法侵害預防指引（第五版）'
+    title: '執行職務遭受不法侵害',
+    body: '除事業單位內部霸凌外，顧客、服務對象、案家或其他第三人造成的身體或精神不法侵害，也涉及職業安全衛生的預防、行為規範、訓練、申訴及事件處理。',
+    href: 'https://laws.mol.gov.tw/FLAW/PrintFLAWDOC01.aspx?flno=324-3&id=FL015021',
+    link: '職業安全衛生設施規則第324條之3'
   },
   {
-    title: '公務人員職場霸凌',
-    body: '公務機關另有防護委員會、申訴、調查、保密、立即保護與機關監督制度，須依公務人員身分處理。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=A0030050',
-    link: '公務人員執行職務安全及衛生防護辦法'
+    title: '人事處分、調動與申訴保護',
+    body: '解僱、資遣、調動、減薪、排班、考績或懲處，應依具體事實、權限、勞動法令及正式程序處理，不宜作為情緒性威嚇或申訴後報復。',
+    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001',
+    link: '勞動基準法相關規定'
   },
   {
     title: '工作場所性騷擾',
-    body: '性要求、性意味、性別歧視、性別貶抑、帶有性意味的文字、圖片、貼圖或反覆追求，可能觸及工作場所性騷擾制度。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=N0030014',
-    link: '性別平等工作法'
+    body: '性要求、性意味或性別歧視的言詞、行為、圖片或貼圖，若造成敵意、脅迫或冒犯性工作環境，可能進入工作場所性騷擾制度；利用權勢或交換工作利益時風險更高。',
+    href: 'https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL015149',
+    link: '性別平等工作法第12條、第13條'
   },
   {
-    title: '一般性騷擾',
-    body: '在不適用職場或校園特別法時，違反意願且與性或性別有關、損害人格尊嚴或造成畏怖、敵意、冒犯情境的行為，可能依一般制度處理。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=D0050074',
-    link: '性騷擾防治法'
-  },
-  {
-    title: '跟蹤騷擾',
-    body: '需具反覆或持續、違反意願、與性或性別有關、特定行為態樣，以及使人心生畏怖並足以影響日常生活或社會活動等要件。',
+    title: '一般性騷擾與跟蹤騷擾',
+    body: '非職場或校園特別制度時，可能另依性騷擾防治法分流。反覆或持續、違反意願的通訊干擾、守候、尾隨、威脅或掌握行蹤，若符合其他法定要件，亦可能涉及跟蹤騷擾。',
     href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0080211',
     link: '跟蹤騷擾防制法'
   },
   {
-    title: '校園霸凌與校園性別事件',
-    body: '校園事件須依行為人與被行為人身分、是否對學生、是否涉及性或性別等因素，分流適用霸凌或性別平等教育程序。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=H0020081',
-    link: '校園霸凌防制準則'
-  },
-  {
-    title: '個人資料與健康資料',
-    body: '姓名、聯絡方式、身分證字號、地址、病歷、醫療與健康資訊等均應遵守特定目的、必要範圍、資料最小化與安全維護原則。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=I0050021',
+    title: '個人資料與隱私',
+    body: '姓名、電話、地址、身分證字號、病歷、醫療與健康資訊等，應遵守特定目的、必要範圍、誠實信用與安全維護原則；申訴與調查資訊亦有保密要求。',
+    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=I0050021',
     link: '個人資料保護法'
   },
   {
-    title: '人格權與民事責任',
-    body: '侮辱、散布隱私、侵害名譽、信用、隱私或其他人格法益，可能衍生停止侵害、損害賠償或回復名譽等民事責任。',
+    title: '人格權、名譽與刑事風險',
+    body: '侮辱、威脅、散布隱私、侵害名譽或以強制手段迫使他人服從，依具體情境可能衍生民事或刑事責任；本工具只提示風險，不直接認定構成要件成立。',
     href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=B0000001',
-    link: '民法第18條、第184條、第195條'
-  },
-  {
-    title: '刑事風險',
-    body: '依具體內容與情境，威脅、強制、公然侮辱、誹謗、妨害秘密或其他行為，可能涉及刑法；單靠關鍵字不能判定犯罪成立。',
-    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=C0000001',
-    link: '中華民國刑法'
+    link: '民法與刑法相關規定'
   },
   {
     title: '歧視與差別待遇',
-    body: '以種族、階級、語言、思想、宗教、性別、性傾向、年齡、身心障礙等作為羞辱或不利處理依據，可能另涉就業歧視與平等保障。',
+    body: '以性別、性傾向、年齡、族群、國籍、語言、身心障礙等受保障身分作為羞辱或不利處理依據，可能另涉就業歧視及平等保障。',
     href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0090001',
     link: '就業服務法第5條及相關平等法制'
+  },
+  {
+    title: '公務人員與校園分流',
+    body: '公務人員職場霸凌、校園霸凌及校園性別事件各有專門的防護、調查與救濟程序，不能直接套用一般民間職場流程。',
+    href: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=A0030050',
+    link: '公務人員安全衛生防護與校園相關法制'
   }
-];
-
-const LEGAL_NOTES = {
-  bullying: '職業安全衛生法第22條之1將職場霸凌連結到職務或權勢關係、逾越業務必要合理範圍、持續的不當言行與身心健康危害；情節重大者，不以持續發生為必要。職場霸凌防治措施準則另要求雇主預防、申訴、調查、保密、保護與後續處理。',
-  publicService: '若當事人具公務人員身分，應另依公務人員保障法及公務人員執行職務安全及衛生防護辦法分流處理，不宜直接套用一般勞工的申訴程序。',
-  sexual: '性別平等工作法第12條將「具有性意味或性別歧視之言詞或行為」造成敵意、脅迫或冒犯性工作環境納入工作場所性騷擾；其他場域則可能依性騷擾防治法或性別平等教育法處理。',
-  stalking: '跟蹤騷擾防制法第3條通常要求對特定人反覆或持續、違反其意願、與性或性別有關，並使其心生畏怖、足以影響日常生活或社會活動；單一粗魯訊息不當然成立跟蹤騷擾。',
-  privacy: '個人資料保護法要求個人資料之蒐集、處理與利用具有特定目的及適法基礎，並限於必要範圍；病歷、醫療、健康等資訊尤應審慎。',
-  dignity: '侮辱、威脅、散布隱私或貶抑人格，除組織內部責任外，依具體情境亦可能涉及民法人格權、侵權責任或刑事責任；本工具不直接判定犯罪成立。',
-  campus: '校園事件須依雙方身分、是否對學生、是否涉及性或性別等因素，分流適用校園霸凌防制準則、性別平等教育法及相關教師或校長處理規範。',
-  client: '對案家、服務對象或家屬的不當言詞，除服務品質、契約與專業倫理風險外，也可能與工作者遭第三方不法侵害之職安議題交錯，應保留服務界線但避免羞辱。',
-  equality: '若言詞以性別、性傾向、年齡、族群、國籍、身心障礙或其他受保障身分作為羞辱或不利處理依據，應另檢查性別平等工作法、就業服務法及其他反歧視規範。',
-  employment: '解僱、資遣、調動、排班、減薪、考績或其他人事措施應有適法依據並循正式程序。勞動基準法第10條之1、第11條、第12條等規範調動及終止契約；勞工依法申訴時，第74條並禁止報復性不利處分。'
-};
-
-const RISK_RULES = [
-  {
-    id: 'profanity-directed',
-    category: '直接辱罵或粗鄙人身攻擊',
-    severity: 'severe',
-    weight: 30,
-    regex: /(幹[\s·・._*＊xX-]*[你妳您]?[\s·・._*＊xX-]*(?:娘|媽|老母)|幹你|幹妳|操[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)|肏[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)|雞掰|機掰|靠北|靠夭|他媽的|媽的|王八蛋|混蛋|畜生|賤人|垃圾人|廢物|白痴|智障|腦殘|低能|去死|欠罵|不要臉)/giu,
-    reason: '這類文字不是工作內容、事實或可執行指示，而是直接攻擊人格。即使單一訊息尚不足以直接認定職場霸凌成立，也可能成為不當言行、敵意環境、人格權侵害或後續申訴的重要證據。',
-    legal: ['bullying', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'gender-slur',
-    category: '性別貶抑或性別辱罵',
-    severity: 'severe',
-    weight: 32,
-    regex: /(死\s*查某|臭\s*查某|死\s*三八|臭\s*三八|婊子|臭婊|母豬|死娘炮|娘炮|男人婆|死gay|同性戀噁心|女人就是沒用|男人就是廢物)/giu,
-    reason: '以性別、性別氣質或性傾向作為羞辱工具，已超出一般工作糾正或管理必要範圍；依場域與權勢關係，可能同時涉及職場霸凌、性別歧視或性騷擾法制。',
-    legal: ['bullying', 'sexual', 'equality', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'severe-insult',
-    category: '侮辱或人格貶抑',
-    severity: 'severe',
-    weight: 24,
-    regex: /(有病|神經病|沒救|閉嘴|滾蛋|滾開|噁心|蠢貨|豬腦|沒腦|腦袋有洞|智商有問題)/giu,
-    reason: '將工作問題轉化為對人格、能力或身心狀態的貶抑，容易造成敵意或冒犯性環境，也會讓正式紀錄失焦。',
-    legal: ['bullying', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'employment-retaliation-threat',
-    category: '以解僱、排班、減薪或考績作為威嚇',
-    severity: 'severe',
-    weight: 30,
-    regex: /((?:信不信|你再|再不|如果你再|不然|否則|敢再|給我)[^。！？!?；;\n]{0,24}(?:開除|解僱|資遣|開掉|把[你妳]開了|讓[你妳]走|不用來|不排班|減薪|降職|調職|記過|考績(?:打|給)?(?:差|丙|丁))|(?:明天|今天|現在|馬上)[^。！？!?；;\n]{0,16}(?:把[你妳]?(?:開除|開掉|開了)|叫[你妳]?(?:走|滾)|不用來)|把[你妳](?:開除|開掉|開了))/giu,
-    reason: '把人事處分當成情緒性威嚇，沒有交代事實、法定或契約依據、權限與程序，容易形成權勢壓迫或報復性處分爭議。人事處置應另循正式程序，不應夾在怒斥訊息中。',
-    legal: ['bullying', 'employment', 'dignity'],
-    replace: '如涉及工作表現或人事處置，將依具體事實、既定規範及正式程序另行處理。'
-  },
-  {
-    id: 'dismissal-threat',
-    category: '缺乏程序的人事處分語句',
-    severity: 'severe',
-    weight: 22,
-    regex: /(不想做就離職|不爽就離職|明天不用來|不用來了|給我滾出公司|不配合就不排班|再不回(?:我)?就(?:不用|不再)(?:服務|排班|來|合作)(?:你|您)?(?:了)?)/giu,
-    reason: '直接用工作存續、排班或服務安排壓迫對方，未區分事實、程序與合法權限。若確實需要調整工作或服務，應以客觀理由及正式程序處理。',
-    legal: ['bullying', 'employment', 'dignity'],
-    replace: '如涉及工作或服務安排調整，將依既定程序另行通知，並提供必要說明。'
-  },
-  {
-    id: 'threat',
-    category: '威脅或不當施壓',
-    severity: 'severe',
-    weight: 28,
-    regex: /(你給我小心|我不會放過你|讓你混不下去|弄死你|打死你|知道你住哪|等你下班|走著瞧|讓你後悔|你試試看|有你好看|信不信我(?:弄|修理|處理)你)/giu,
-    reason: '以人身安全、工作存續、報復或其他不利益暗示迫使對方服從，可能超出管理必要範圍並造成恐懼。',
-    legal: ['bullying', 'stalking', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'belittling-rhetorical',
-    category: '羞辱式反問或嘲弄',
-    severity: 'moderate',
-    weight: 16,
-    regex: /(你是時空穿越(?:了)?嗎|你是活在(?:古代|清朝|上個世紀)嗎|你從哪個年代來的|現在幾年了你知道嗎|你是在裝傻嗎|你有沒有常識|你有沒有腦|腦袋還在睡嗎)/giu,
-    reason: '這類反問沒有提供可核對的事實、標準或修正方法，主要效果是嘲弄對方能力或常識。應改成指出具體落差與要求修正的內容。',
-    legal: ['bullying', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'sexual',
-    category: '性或性別相關不當言詞',
-    severity: 'severe',
-    weight: 28,
-    regex: /(身材真好|胸部|屁股|陪睡|上床|約炮|親一個|寶貝|老婆大人|老公大人|美女陪我|帥哥陪我|性能力|月經來喔)/giu,
-    reason: '與工作或服務無關的性、身體或性別評論，可能造成敵意、冒犯或權勢性騷擾風險；貼圖或表情符號亦可能構成言行的一部分。',
-    legal: ['sexual', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'persistent-contact',
-    category: '持續聯絡、守候或追蹤暗示',
-    severity: 'severe',
-    weight: 22,
-    regex: /(我會一直傳到你回|每天找你|一直打給你|不回就一直傳|我會去你家|我知道你在哪|跟到你回覆|堵你|守在你家|守在公司|一直等到你出現)/giu,
-    reason: '反覆通訊、到住居所或工作場所守候、掌握行蹤等內容，可能讓對方心生畏怖；應停止非必要接觸並改走正式聯絡管道。',
-    legal: ['stalking', 'privacy', 'dignity'],
-    replace: '後續請僅透過正式聯絡管道處理相關事項。'
-  },
-  {
-    id: 'sarcasm',
-    category: '嘲諷或反話',
-    severity: 'moderate',
-    weight: 10,
-    regex: /(呵呵|笑死|真厲害|好棒棒|真有你的|了不起喔|天才喔|可憐哪|是不是很會|不愧是你)/giu,
-    reason: '嘲諷無法清楚表達工作期待，容易被理解為羞辱或公開貶抑，也不利後續調查還原事實。',
-    legal: ['bullying', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'competence-attack',
-    category: '針對能力的羞辱式質問',
-    severity: 'moderate',
-    weight: 14,
-    regex: /(你到底會不會|你到底懂不懂|講幾次才懂|講幾次才會|這也不會|連這都不懂|有沒有帶腦|腦袋裝什麼|到底有沒有在聽)/giu,
-    reason: '應指出具體錯誤、標準與修正方式，而不是用反問否定對方整體能力。',
-    legal: ['bullying', 'dignity'],
-    replace: '請確認是否已掌握相關操作與要求'
-  },
-  {
-    id: 'absolute-blame',
-    category: '絕對化責備',
-    severity: 'moderate',
-    weight: 8,
-    regex: /(你每次都|你永遠都|你從來都不|又是你|都是你害的|只有你會這樣|每次出事都有你)/giu,
-    reason: '「永遠、每次、都是」通常欠缺可核對的事件範圍，容易把問題人格化。宜改成具體日期、事項與可觀察結果。',
-    legal: ['bullying', 'dignity'],
-    replace: '目前觀察到此事項曾重複發生，'
-  },
-  {
-    id: 'command-contempt',
-    replaceWholeSentence: true,
-    category: '命令式貶抑語氣',
-    severity: 'moderate',
-    weight: 10,
-    regex: /((?:大家)?自己看著辦|少廢話|不要找藉口|照做就對了|我說了算|沒有資格問|輪不到你說話|叫你做就做|不要囉嗦)/giu,
-    reason: '管理指示仍應說明工作目的、範圍、期限及可反映困難的管道；封閉溝通可能被理解為權勢壓迫。',
-    legal: ['bullying', 'dignity'],
-    replace: '請依既定規範辦理；如有困難，請提出具體原因，以便協調。'
-  },
-  {
-    id: 'public-shaming',
-    category: '公開羞辱或揭露隱私',
-    severity: 'severe',
-    weight: 24,
-    regex: /(我要讓大家知道|丟到群組讓大家看|公布你的|公開你的|把你資料貼出來|讓全公司看笑話|告訴所有人你的事)/giu,
-    reason: '將個人錯誤、申訴、健康、家庭或身分資訊公開，可能逾越業務必要範圍，並侵害隱私、名譽與個資權益。',
-    legal: ['bullying', 'privacy', 'dignity'],
-    replace: '此事項將僅於必要範圍內，透過適當管道處理。'
-  },
-  {
-    id: 'discrimination',
-    category: '歧視或身分貶抑',
-    severity: 'severe',
-    weight: 24,
-    regex: /(外勞就是|原住民就是|老人都沒用|年輕人都沒用|女人就是|男人就是|殘障|跛子|瞎子|聾子|死胖子|肥婆|老女人|老頭子|低端人口)/giu,
-    reason: '以性別、年齡、族群、國籍、身心狀態或其他身分作為羞辱與差別待遇依據，可能涉及平等、就業歧視與人格權風險。',
-    legal: ['bullying', 'equality', 'sexual', 'dignity'],
-    replace: ''
-  },
-  {
-    id: 'exclusion-isolation',
-    category: '刻意排擠、冷落或阻斷參與',
-    severity: 'moderate',
-    weight: 16,
-    regex: /(大家(?:都)?不要理(?:他|她|你|妳)|不要讓(?:他|她|你|妳)(?:知道|參加|進來|進群組)|故意不通知(?:他|她|你|妳)|把(?:他|她|你|妳)踢出群組|這件事不要找(?:他|她|你|妳))/giu,
-    reason: '職場霸凌防治規範明列刻意排擠、忽視、冷落或不讓特定人參與必要重要會議、事務或活動等情形。若確有權限、保密或分工理由，應把客觀理由寫清楚，而不是以孤立為目的。',
-    legal: ['bullying', 'dignity'],
-    replace: '如基於分工、權限或保密需要調整參與範圍，請依客觀標準與正式程序辦理並說明理由。'
-  },
-  {
-    id: 'information-sabotage',
-    category: '刻意隱瞞資訊或妨礙工作',
-    severity: 'severe',
-    weight: 24,
-    regex: /(不要把(?:資料|資訊|版本|通知)給(?:他|她|你|妳)|故意不給(?:他|她|你|妳)(?:資料|資訊)|給(?:他|她|你|妳)錯的(?:資料|版本|時間)|就讓(?:他|她|你|妳)不知道|看(?:他|她|你|妳)怎麼出包)/giu,
-    reason: '刻意隱瞞必要資訊、提供錯誤資訊或阻礙工作，屬職場霸凌規範特別要求審酌的行為樣態之一。合法的權限控管應有業務理由與一致標準。',
-    legal: ['bullying', 'dignity'],
-    replace: '請依職務權限與工作需要提供正確且必要的資訊；如有資訊限制，請說明適用理由與範圍。'
-  },
-  {
-    id: 'unreasonable-workload',
-    category: '以權勢分派明顯不合理工作',
-    severity: 'moderate',
-    weight: 16,
-    regex: /(全部丟給(?:你|妳)(?:一個人)?做|這些都(?:你|妳)一個人扛|做不完不准下班|今晚全部給我做完|不管工作量.*(?:你|妳)都要做完|故意給(?:你|妳)做不完)/giu,
-    reason: '利用職務或權勢刻意設定不合理目標，或分派與能力明顯不符的工作，是職場霸凌規範明列的審酌態樣。急件或高負荷工作應交代理由、優先順序、資源與合理期限。',
-    legal: ['bullying'],
-    replace: '請依工作優先順序與可用資源辦理；如工作量或期限確有困難，請立即提出，以便調整分工與時程。'
-  },
-  {
-    id: 'complaint-retaliation',
-    category: '申訴、檢舉或求助後的報復威嚇',
-    severity: 'severe',
-    weight: 34,
-    regex: /((?:敢|再敢|你敢)(?:去)?(?:申訴|檢舉|投訴|告我|告公司)[^。！？!?；;\n]{0,24}(?:開除|不排班|減薪|調職|記過|整你|讓你走|有你好看)|(?:申訴|檢舉|投訴)就[^。！？!?；;\n]{0,20}(?:開除|不排班|減薪|調職|記過|讓你走)|去申訴啊[^。！？!?；;\n]{0,20}(?:看你|試試看))/giu,
-    reason: '以申訴、檢舉、作證、協助申訴或求助為由暗示解僱、減薪、降調、排班不利益或其他報復，與職場霸凌、性騷擾及一般勞動法制的禁止報復原則直接衝突。',
-    legal: ['bullying', 'employment', 'sexual', 'dignity'],
-    replace: '申訴、檢舉或尋求協助屬正式權利，相關人員不得因此受到報復或其他不利待遇；後續事項請依正式程序處理。'
-  },
-  {
-    id: 'complaint-confidentiality',
-    category: '揭露申訴人或調查資訊',
-    severity: 'severe',
-    weight: 26,
-    regex: /(公布(?:申訴人|檢舉人|誰告的)|把(?:申訴內容|檢舉內容|調查內容)丟到群組|讓大家知道誰(?:申訴|檢舉|告狀)|我把誰告的說出來|大家看看是誰(?:申訴|檢舉))/giu,
-    reason: '職場霸凌及性騷擾申訴調查均重視不公開處理、身分保密與避免報復。非基於必要而揭露申訴人、協助者或調查資訊，可能造成二次傷害與程序風險。',
-    legal: ['bullying', 'sexual', 'privacy', 'dignity'],
-    replace: '申訴與調查資訊僅應於法定或業務必要範圍內由有權人員處理，請勿向無關人員揭露。'
-  },
-  {
-    id: 'client-rudeness',
-    replaceWholeSentence: true,
-    category: '對案家或服務對象的不禮貌表述',
-    severity: 'moderate',
-    weight: 10,
-    audience: ['client', 'public'],
-    regex: /(你們家(?:真的)?(?:很)?(?:麻煩|難搞)|不要再煩|這不是我的事|愛怎樣就怎樣|自己負責|講不聽|難搞|奧客|別再打來|不想服務你)/giu,
-    reason: '服務界線可以明確，但不宜以情緒性標籤或拒絕溝通表達；宜說明可提供的範圍、不能提供的原因與後續管道。',
-    legal: ['client', 'dignity'],
-    replace: '目前在服務溝通上仍有需要釐清之處。請依既定服務範圍處理；如需調整或協助，請透過正式管道提出。'
-  },
-  {
-    id: 'pressure-deadline',
-    replaceWholeSentence: true,
-    category: '缺乏程序的緊迫施壓',
-    severity: 'moderate',
-    weight: 8,
-    regex: /(馬上給我|立刻給我|現在就給我|五分鐘內給我|不管你用什麼方法|今天做不完別下班)/giu,
-    reason: '如確有急迫性，應交代原因、工作優先順序、可用資源與合理期限，而非以情緒性命令要求無條件完成。',
-    legal: ['bullying'],
-    replace: '此事項具有時效性，請優先處理；如期限確有困難，請立即說明，以便調整安排。'
-  }
-];
-
-// 第二層防漏：不是拿來作法律認定，而是避免建議版本仍把明顯辱罵、性別羞辱或威嚇原樣帶出去。
-const RESIDUAL_BLOCK_RULES = [
-  /幹[\s·・._*＊xX-]*[你妳您]?[\s·・._*＊xX-]*(?:娘|媽|老母)|幹你|幹妳|操[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)|肏[\s·・._*＊xX-]*[你妳]?[\s·・._*＊xX-]*(?:媽|娘)/iu,
-  /死\s*查某|臭\s*查某|死\s*三八|婊子|母豬|死娘炮|同性戀噁心/iu,
-  /白痴|智障|腦殘|低能|廢物|去死|滾蛋|滾開|有病|神經病/iu,
-  /信不信[^。！？!?；;\n]{0,24}(?:開除|解僱|資遣|開掉|把[你妳]開了|弄死|打死|修理你|讓你後悔)/iu,
-  /你是時空穿越(?:了)?嗎|你是活在(?:古代|清朝|上個世紀)嗎/iu
 ];
 
 const PII_RULES = [
@@ -389,14 +135,15 @@ const HEALTH_TERMS = /(診斷|病歷|病史|精神科|身心科|失智|憂鬱症
 const STICKER_REGEX = /(\[貼圖\]|【貼圖】|\(貼圖\)|〈貼圖〉|\[sticker\]|<sticker>|貼圖一張)/giu;
 const EMOJI_REGEX = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\uFE0F\u200D\u20E3]/gu;
 const EXCESSIVE_PUNCTUATION = /([!?！？])\1{1,}/gu;
+const OBFUSCATION_SEPARATOR = '[\\s·・._*＊xX\\-—~～%％#＃@＠]*';
 
-const TEMPLATE_BY_PURPOSE = {
-  remind: '請協助確認目前辦理進度，並於可行時間內回覆；如有困難，請說明原因，以便協調後續安排。',
-  correct: '目前發現執行內容與既定要求可能不一致，請協助確認並修正；如對標準或操作方式有疑問，請提出討論。',
-  rule: '為確保作業一致與保障雙方權益，後續請依既定規範辦理；如有特殊情形，請先提出說明。',
-  refuse: '此項要求目前不在可提供或可核准的範圍內，原因如下：＿＿＿＿。如需其他可行方案，請透過正式管道提出。',
-  schedule: '關於後續排班、分工或服務安排，將依既定程序與實際需求辦理；如有困難，請於期限前提出，以便協調。',
-  general: '請協助確認相關事項；如有不同理解或執行困難，請具體說明，以便共同處理。'
+const PURPOSE_FALLBACK = {
+  remind: '請協助確認目前辦理進度，並於可行時間內回覆。',
+  correct: '請協助確認上述差異並依既定標準修正。',
+  rule: '後續請依既定規範辦理；如有特殊情形，請先提出具體說明。',
+  refuse: '目前無法依原要求辦理；如需其他可行方案，請透過正式管道提出。',
+  schedule: '後續排班、分工或服務安排將依既定程序與實際需求辦理。',
+  general: '請協助確認上述事項，並回覆後續處理方式。'
 };
 
 const OPENING_BY_AUDIENCE = {
@@ -407,17 +154,607 @@ const OPENING_BY_AUDIENCE = {
   public: '您好，'
 };
 
+const TONE_CLOSING = {
+  cooperative: '如有不同理解或執行困難，請具體說明，以便協調後續處理。',
+  directive: '請依上述事項辦理；如有客觀困難，請於期限前具體說明。',
+  formal: '後續將依既定規範、權限及正式程序辦理；如對事實或標準有不同意見，請提出具體說明。'
+};
+
+const PHRASE_MATCHERS = PHRASE_ENTRIES.map(entry => ({
+  entry,
+  regex: phraseToFlexibleRegex(entry.phrase)
+}));
+
 function $(id) {
   return document.getElementById(id);
+}
+
+function phraseToFlexibleRegex(phrase) {
+  const escapedChars = Array.from(normalizeText(phrase)).map(char => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(escapedChars.join(OBFUSCATION_SEPARATOR), 'giu');
+}
+
+function normalizeText(text) {
+  return String(text || '')
+    .normalize('NFKC')
+    .replace(/[\u200B\u200C\u2060\uFEFF]/gu, '');
+}
+
+function cleanText(text) {
+  return normalizeText(text)
+    .replace(/,/g, '，')
+    .replace(/;/g, '；')
+    .replace(/:/g, '：')
+    .replace(/\?/g, '？')
+    .replace(/!/g, '！')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*([，。；：、！？])\s*/g, '$1')
+    .replace(/\s*([,.;:!?])\s*/g, '$1')
+    .replace(/([，；：、]){2,}/g, '$1')
+    .replace(/([,;:]){2,}/g, '$1')
+    .replace(/([。！？])[，,；;：:、]+/g, '$1')
+    .replace(/[，,；;：:、]+([。！？])/g, '$1')
+    .replace(/([。！？])[。！？]+/g, '$1')
+    .replace(/。{2,}/g, '。')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^[，。；：、！？,.;:!?\s]+|[，；：、,;:\s]+$/g, '')
+    .trim();
+}
+
+function ensureSentence(text) {
+  const value = cleanText(text);
+  if (!value) return '';
+  return /[。！？]$/.test(value) ? value : `${value}。`;
+}
+
+function sentenceWithoutLeadingPlease(text) {
+  const value = cleanText(text);
+  if (!value) return '';
+  if (/^(請|麻煩|建議|後續|請勿|務必|需|應)/.test(value)) return ensureSentence(value);
+  return ensureSentence(`請${value}`);
+}
+
+function getLegalNotes(keys) {
+  return (keys || [])
+    .map(key => LEGAL_CATALOG[key])
+    .filter(Boolean);
+}
+
+function dedupeFindings(findings) {
+  const seen = new Set();
+  return findings.filter(item => {
+    const key = `${item.source}|${item.corpusId || item.title}|${item.fragment}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function scanCorpus(text, options, source = '原始訊息') {
+  const normalized = normalizeText(text);
+  const findings = [];
+  let score = 0;
+
+  for (const matcher of PHRASE_MATCHERS) {
+    const { entry, regex } = matcher;
+    if (entry.audiences && !entry.audiences.includes(options.audience)) continue;
+    regex.lastIndex = 0;
+    const match = regex.exec(normalized);
+    if (!match) continue;
+
+    score += entry.weight;
+    findings.push({
+      type: 'tone',
+      source,
+      corpusId: entry.id,
+      title: entry.category,
+      severity: entry.severity,
+      fragment: match[0] || entry.phrase,
+      canonicalPhrase: entry.phrase,
+      reason: entry.warning,
+      safeAction: entry.safeAction,
+      legalNotes: getLegalNotes(entry.legal)
+    });
+  }
+
+  for (const entry of PATTERN_ENTRIES) {
+    entry.regex.lastIndex = 0;
+    const match = entry.regex.exec(normalized);
+    if (!match) continue;
+
+    score += entry.weight;
+    findings.push({
+      type: 'tone',
+      source,
+      corpusId: entry.id,
+      title: entry.category,
+      severity: entry.severity,
+      fragment: match[0],
+      canonicalPhrase: '結構語句',
+      reason: entry.warning,
+      safeAction: entry.safeAction,
+      legalNotes: getLegalNotes(entry.legal)
+    });
+  }
+
+  return { findings: dedupeFindings(findings), score };
+}
+
+function inspectNonLexical(text, source, options) {
+  const findings = [];
+  let score = 0;
+
+  if (!options.removeEmoji) return { findings, score };
+
+  const stickerMatches = [...normalizeText(text).matchAll(STICKER_REGEX)].map(match => match[0]);
+  if (stickerMatches.length) {
+    score += 6;
+    findings.push({
+      type: 'tone',
+      source,
+      corpusId: 'FORMAT-STICKER',
+      title: '貼圖或貼圖標記',
+      severity: 'info',
+      fragment: [...new Set(stickerMatches)].join('、'),
+      reason: '貼圖語意高度依賴圖像與上下文，可能含嘲諷、性意味、威脅或可識別資訊；正式工作訊息不宜依靠貼圖表達關鍵意思。',
+      safeAction: '改用可清楚留存與查證的文字表達。',
+      legalNotes: [LEGAL_CATALOG['OSH22-1'], LEGAL_CATALOG['GEEA12'], LEGAL_CATALOG['PDPA5']].filter(Boolean)
+    });
+  }
+
+  const emojiMatches = normalizeText(text).match(EMOJI_REGEX) || [];
+  if (emojiMatches.length) {
+    score += 4;
+    findings.push({
+      type: 'tone',
+      source,
+      corpusId: 'FORMAT-EMOJI',
+      title: '表情符號',
+      severity: 'info',
+      fragment: [...new Set(emojiMatches)].join(' '),
+      reason: '表情符號可能放大輕蔑、憤怒、嘲弄或性意味，也不利於日後還原正式工作指示。',
+      safeAction: '關鍵工作訊息以文字、事實、要求與期限表達。',
+      legalNotes: [LEGAL_CATALOG['OSH22-1'], LEGAL_CATALOG['GEEA12']].filter(Boolean)
+    });
+  }
+
+  const punctuation = normalizeText(text).match(EXCESSIVE_PUNCTUATION) || [];
+  if (punctuation.length) {
+    score += 3;
+    findings.push({
+      type: 'tone',
+      source,
+      corpusId: 'FORMAT-PUNCT',
+      title: '過度標點',
+      severity: 'info',
+      fragment: [...new Set(punctuation)].join('、'),
+      reason: '連續驚嘆號或問號容易被理解為怒斥、嘲諷或施壓。',
+      safeAction: '保留單一必要標點即可。',
+      legalNotes: [LEGAL_CATALOG['OSH22-1']].filter(Boolean)
+    });
+  }
+
+  return { findings, score };
+}
+
+function scanPii(text, source = '原始訊息') {
+  const normalized = normalizeText(text);
+  const findings = [];
+  let score = 0;
+
+  for (const rule of PII_RULES) {
+    rule.regex.lastIndex = 0;
+    const matches = [...normalized.matchAll(rule.regex)];
+    if (!matches.length) continue;
+    score += 10;
+    findings.push({
+      type: 'privacy',
+      source,
+      corpusId: `PII-${rule.id}`,
+      title: rule.title,
+      severity: 'severe',
+      fragment: matches.slice(0, 3).map(match => match[0]).join('、'),
+      reason: rule.reason,
+      safeAction: '確認是否確有傳送必要；若無必要，請刪除或遮罩。',
+      legalNotes: [LEGAL_CATALOG['PDPA5']].filter(Boolean)
+    });
+  }
+
+  HEALTH_TERMS.lastIndex = 0;
+  const healthMatches = [...normalized.matchAll(HEALTH_TERMS)].map(match => match[0]);
+  if (healthMatches.length) {
+    score += 5;
+    findings.push({
+      type: 'privacy',
+      source,
+      corpusId: 'PII-HEALTH',
+      title: '健康或醫療資訊',
+      severity: 'info',
+      fragment: [...new Set(healthMatches)].slice(0, 8).join('、'),
+      reason: '健康與醫療資訊高度敏感。即使傳送給本人，也應確認收件者、群組成員、轉傳風險與是否真的需要寫入。',
+      safeAction: '僅在照護或業務必要範圍內提供，避免無關群組或轉傳。',
+      legalNotes: [LEGAL_CATALOG['PDPA5']].filter(Boolean)
+    });
+  }
+
+  return { findings, score };
+}
+
+function sanitizeOutputField(text, options) {
+  let output = normalizeText(text);
+  let blocked = 0;
+
+  if (options.removeEmoji) {
+    output = output.replace(STICKER_REGEX, '');
+    output = output.replace(EMOJI_REGEX, '');
+    output = output.replace(EXCESSIVE_PUNCTUATION, '$1');
+  }
+
+  for (const matcher of PHRASE_MATCHERS) {
+    const { entry, regex } = matcher;
+    if (entry.audiences && !entry.audiences.includes(options.audience)) continue;
+    regex.lastIndex = 0;
+    if (!regex.test(output)) continue;
+    regex.lastIndex = 0;
+    output = output.replace(regex, '');
+    blocked += 1;
+  }
+
+  for (const entry of PATTERN_ENTRIES) {
+    entry.regex.lastIndex = 0;
+    if (!entry.regex.test(output)) continue;
+    output = removeSentencesContaining(output, entry.regex);
+    blocked += 1;
+  }
+
+  if (options.maskPii) {
+    for (const rule of PII_RULES) {
+      rule.regex.lastIndex = 0;
+      if (!rule.regex.test(output)) continue;
+      rule.regex.lastIndex = 0;
+      output = output.replace(rule.regex, rule.replacement);
+      blocked += 1;
+    }
+  }
+
+  return { text: cleanText(output), blocked };
+}
+
+function removeSentencesContaining(text, regex) {
+  const flags = regex.flags.replace('g', '');
+  const tester = new RegExp(regex.source, flags);
+  return normalizeText(text)
+    .split(/(?<=[。！？!?；;\n])/u)
+    .map(segment => {
+      tester.lastIndex = 0;
+      return tester.test(segment) ? '' : segment;
+    })
+    .join('');
+}
+
+function sanitizeSubstance(substance, options) {
+  const keys = ['topic', 'fact', 'action', 'deadline', 'reason'];
+  const cleaned = {};
+  let blocked = 0;
+
+  for (const key of keys) {
+    const result = sanitizeOutputField(substance[key] || '', options);
+    cleaned[key] = result.text;
+    blocked += result.blocked;
+  }
+  cleaned.tone = substance.tone || 'directive';
+  return { substance: cleaned, blocked };
+}
+
+function composeSafeMessage(substance, options) {
+  // 重要安全不變量：
+  // 本函式只接收「實質內容欄位」，沒有 raw/original message 參數。
+  // 因此原始高風險訊息不會被拿來拼接可複製版本。
+  const opening = OPENING_BY_AUDIENCE[options.audience] || '';
+  const parts = [];
+
+  if (substance.topic) {
+    const topic = cleanText(substance.topic).replace(/[。！？]+$/g, '');
+    if (topic) parts.push(`關於${topic}，說明如下。`);
+  }
+
+  if (substance.fact) {
+    parts.push(ensureSentence(substance.fact));
+  }
+
+  if (substance.action) {
+    parts.push(sentenceWithoutLeadingPlease(substance.action));
+  } else if (substance.fact || substance.topic) {
+    parts.push(PURPOSE_FALLBACK[options.purpose] || PURPOSE_FALLBACK.general);
+  }
+
+  if (substance.deadline) {
+    const deadline = cleanText(substance.deadline).replace(/[。！？]+$/g, '');
+    if (deadline) parts.push(`處理或回覆期限：${deadline}。`);
+  }
+
+  if (substance.reason) {
+    parts.push(ensureSentence(`相關原因、影響或程序：${substance.reason}`));
+  }
+
+  if (!parts.length) {
+    return {
+      text: '',
+      copyable: false,
+      notice: '原始訊息只用於風險檢核，不會自動進入建議版本。請至少填寫「客觀事實／目前狀況」或「希望對方完成的行動」，再產生可直接複製的內容。'
+    };
+  }
+
+  const closing = TONE_CLOSING[substance.tone] || TONE_CLOSING.directive;
+  parts.push(closing);
+
+  let text = parts.filter(Boolean).join('\n');
+  if (opening) text = opening + text;
+
+  return {
+    text: cleanText(text.replace(/\n\s*\n/g, '\n')),
+    copyable: true,
+    notice: '建議版本只由「實質內容」欄位組成；原始訊息不會被自動複製或拼接進輸出。'
+  };
+}
+
+function analyzeMessage(raw, substance = {}, options = {}) {
+  const normalizedOptions = {
+    audience: options.audience || 'coworker',
+    purpose: options.purpose || 'general',
+    removeEmoji: options.removeEmoji !== false,
+    maskPii: options.maskPii !== false,
+    recordableTone: options.recordableTone !== false,
+    clipboardImageDetected: Boolean(options.clipboardImageDetected)
+  };
+
+  const findings = [];
+  let score = 0;
+
+  const rawCorpus = scanCorpus(raw, normalizedOptions, '原始訊息');
+  findings.push(...rawCorpus.findings);
+  score += rawCorpus.score;
+
+  const rawFormat = inspectNonLexical(raw, '原始訊息', normalizedOptions);
+  findings.push(...rawFormat.findings);
+  score += rawFormat.score;
+
+  const rawPii = scanPii(raw, '原始訊息');
+  findings.push(...rawPii.findings);
+  score += rawPii.score;
+
+  const substanceCombined = [substance.topic, substance.fact, substance.action, substance.deadline, substance.reason]
+    .filter(Boolean)
+    .join('\n');
+
+  if (substanceCombined) {
+    const substanceCorpus = scanCorpus(substanceCombined, normalizedOptions, '實質內容');
+    findings.push(...substanceCorpus.findings);
+    score += substanceCorpus.score;
+
+    const substanceFormat = inspectNonLexical(substanceCombined, '實質內容', normalizedOptions);
+    findings.push(...substanceFormat.findings);
+    score += substanceFormat.score;
+
+    const substancePii = scanPii(substanceCombined, '實質內容');
+    findings.push(...substancePii.findings);
+    score += substancePii.score;
+  }
+
+  if (normalizedOptions.clipboardImageDetected) {
+    score += 6;
+    findings.push({
+      type: 'tone',
+      source: '原始訊息',
+      corpusId: 'FORMAT-PASTE-IMAGE',
+      title: '剪貼簿圖片或貼圖',
+      severity: 'info',
+      fragment: '圖片內容未讀取',
+      reason: '剪貼簿含圖片或貼圖。本網站基於資料最小化不讀取、不辨識、不上傳影像，因此無法判斷其中是否含羞辱、性意味、威脅或個資。',
+      safeAction: '重要工作內容改用可留存文字；必要影像另依組織規範處理。',
+      legalNotes: [LEGAL_CATALOG['OSH22-1'], LEGAL_CATALOG['GEEA12'], LEGAL_CATALOG['PDPA5']].filter(Boolean)
+    });
+  }
+
+  const sanitized = sanitizeSubstance(substance, normalizedOptions);
+  const composed = composeSafeMessage(sanitized.substance, normalizedOptions);
+
+  // 最終防漏：即使使用者把高風險用語放在「實質內容」欄，
+  // 可複製版本仍需再掃一次；若仍命中，就不提供可複製輸出。
+  let safeText = composed.text;
+  let copyable = composed.copyable;
+  let outputNotice = composed.notice;
+  let residualCount = 0;
+
+  if (safeText) {
+    const residualCorpus = scanCorpus(safeText, normalizedOptions, '建議版本防漏');
+    const residualPii = normalizedOptions.maskPii ? { findings: [], score: 0 } : scanPii(safeText, '建議版本防漏');
+    const severeResidual = residualCorpus.findings.filter(item => item.severity !== 'info');
+
+    if (severeResidual.length || residualPii.findings.some(item => item.severity === 'severe')) {
+      residualCount = severeResidual.length + residualPii.findings.length;
+      findings.push({
+        type: 'tone',
+        source: '系統防漏',
+        corpusId: 'OUTPUT-BLOCK',
+        title: '建議版本仍含高風險內容，已阻止複製',
+        severity: 'severe',
+        fragment: severeResidual.map(item => item.fragment).slice(0, 6).join('、') || '仍有高風險內容',
+        reason: '第二層防漏仍偵測到高風險用語或未遮罩的敏感資訊。為避免把不當訊息重新輸出，系統不提供可複製版本。',
+        safeAction: '請調整「實質內容」欄位後重新產生。',
+        legalNotes: []
+      });
+      safeText = '';
+      copyable = false;
+      outputNotice = '建議版本因防漏檢核未通過而被阻止。請修改實質內容欄位後重新產生。';
+      score += 30;
+    }
+  }
+
+  const deduped = dedupeFindings(findings);
+  const privacyCount = deduped.filter(item => item.type === 'privacy').length;
+  const toneRiskCount = deduped.filter(item => item.type === 'tone' && item.severity !== 'info').length;
+  const corpusHitCount = deduped.filter(item => item.corpusId && !item.corpusId.startsWith('PII-') && !item.corpusId.startsWith('FORMAT-') && item.corpusId !== 'OUTPUT-BLOCK').length;
+
+  score = Math.min(100, score);
+  const level = score >= 55 ? 'high' : score >= 20 ? 'medium' : 'low';
+  const label = level === 'high'
+    ? '高風險：原訊息不宜直接傳送'
+    : level === 'medium'
+      ? '中度風險：建議確認脈絡與用語'
+      : '較低風險：仍需人工確認';
+
+  if (!deduped.length) {
+    deduped.push({
+      type: 'system',
+      source: '系統',
+      corpusId: 'SYSTEM-NO-HIT',
+      title: '未命中目前離線語料庫',
+      severity: 'info',
+      fragment: '無',
+      reason: '目前未命中離線高風險用語、結構規則或明顯個資格式；仍可能存在上下文、權勢關係、頻率、貼圖內容、反話或隱含語意風險。',
+      safeAction: '送出前仍應人工確認事實、目的、對象與必要性。',
+      legalNotes: [LEGAL_CATALOG['OSH22-1']].filter(Boolean)
+    });
+  }
+
+  return {
+    safeText,
+    copyable,
+    outputNotice,
+    findings: deduped,
+    score,
+    level,
+    label,
+    privacyCount,
+    toneRiskCount,
+    corpusHitCount,
+    blockedCount: sanitized.blocked + residualCount,
+    corpusVersion: CORPUS.version,
+    corpusPhraseCount: PHRASE_ENTRIES.length,
+    corpusPatternCount: PATTERN_ENTRIES.length
+  };
+}
+
+function readSubstanceFromForm() {
+  return {
+    topic: $('topicText').value,
+    fact: $('factText').value,
+    action: $('actionText').value,
+    deadline: $('deadlineText').value,
+    reason: $('reasonText').value,
+    tone: $('toneSelect').value
+  };
+}
+
+function handleAnalyze() {
+  const raw = $('sourceText').value.trim();
+  const substance = readSubstanceFromForm();
+
+  if (!raw && ![substance.topic, substance.fact, substance.action, substance.deadline, substance.reason].some(value => String(value || '').trim())) {
+    $('inputError').textContent = '請先貼上欲檢核的原始訊息，或填寫要傳達的實質工作內容。';
+    $('inputError').hidden = false;
+    $('sourceText').focus();
+    return;
+  }
+
+  $('inputError').hidden = true;
+
+  const options = {
+    audience: $('audienceSelect').value,
+    purpose: $('purposeSelect').value,
+    removeEmoji: $('removeEmojiOption').checked,
+    maskPii: $('maskPiiOption').checked,
+    recordableTone: true,
+    clipboardImageDetected
+  };
+
+  const result = analyzeMessage(raw, substance, options);
+  renderResult(result);
+}
+
+function renderResult(result) {
+  $('emptyState').hidden = true;
+  $('resultContent').hidden = false;
+  $('safeText').value = result.safeText;
+  $('safeText').placeholder = result.copyable ? '' : '目前沒有可直接複製的版本。請依上方提示補充或修正實質工作內容。';
+
+  $('riskBadge').className = `risk-badge ${result.level}`;
+  $('riskBadge').textContent = `${result.label}（${result.score}）`;
+
+  $('corpusHitCount').textContent = result.corpusHitCount;
+  $('privacyCount').textContent = result.privacyCount;
+  $('blockedCount').textContent = result.blockedCount;
+
+  $('outputSourceNotice').textContent = result.outputNotice;
+  $('outputSourceNotice').className = result.copyable ? 'output-source-notice safe' : 'output-source-notice warning';
+
+  $('copyButton').disabled = !result.copyable;
+  $('copyStatus').textContent = '';
+
+  const fragment = document.createDocumentFragment();
+  for (const finding of result.findings) {
+    const card = document.createElement('article');
+    card.className = `finding-card ${finding.severity === 'severe' ? 'severe' : finding.severity === 'info' ? 'info' : ''}`;
+
+    const top = document.createElement('div');
+    top.className = 'finding-top';
+
+    const titleWrap = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'finding-title';
+    title.textContent = finding.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'finding-meta';
+    meta.textContent = `${finding.source}｜${finding.corpusId}`;
+
+    titleWrap.append(title, meta);
+
+    const severity = document.createElement('span');
+    severity.className = 'severity-label';
+    severity.textContent = finding.severity === 'severe' ? '較高風險' : finding.severity === 'info' ? '提醒' : '中度風險';
+    top.append(titleWrap, severity);
+
+    const quote = document.createElement('div');
+    quote.className = 'finding-fragment';
+    quote.textContent = finding.fragment;
+
+    const reason = document.createElement('p');
+    reason.textContent = finding.reason;
+
+    const safer = document.createElement('p');
+    safer.className = 'safe-action';
+    safer.textContent = `較安全處理：${finding.safeAction}`;
+
+    card.append(top, quote, reason, safer);
+
+    if (finding.legalNotes && finding.legalNotes.length) {
+      const legalBox = document.createElement('div');
+      legalBox.className = 'legal-note-list';
+      for (const legal of finding.legalNotes.slice(0, 4)) {
+        const p = document.createElement('p');
+        p.className = 'legal-note';
+        p.textContent = `法制提示｜${legal.label}：${legal.note}`;
+        legalBox.appendChild(p);
+      }
+      card.appendChild(legalBox);
+    }
+
+    fragment.appendChild(card);
+  }
+
+  $('findingList').replaceChildren(fragment);
+  $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function initialize() {
   renderLegalReferences();
   bindEvents();
   updateCharCount();
+  renderCorpusStats();
 
-  const skipIntro = sessionStorage.getItem(INTRO_SESSION_KEY) === '1';
-  if (skipIntro) {
+  if (sessionStorage.getItem(INTRO_SESSION_KEY) === '1') {
     enterApplication(false);
   }
 }
@@ -427,16 +764,23 @@ function bindEvents() {
   $('showIntroButton').addEventListener('click', showIntro);
   $('showPrivacyButton').addEventListener('click', () => $('privacyDialog').showModal());
   $('closePrivacyButton').addEventListener('click', () => $('privacyDialog').close());
-  $('privacyDialog').addEventListener('click', (event) => {
+  $('privacyDialog').addEventListener('click', event => {
     if (event.target === $('privacyDialog')) $('privacyDialog').close();
   });
+
   $('sourceText').addEventListener('input', updateCharCount);
   $('sourceText').addEventListener('paste', handlePasteInspection);
   $('loadExampleButton').addEventListener('click', loadExample);
   $('analyzeButton').addEventListener('click', handleAnalyze);
   $('clearButton').addEventListener('click', clearAll);
   $('copyButton').addEventListener('click', () => copyText($('safeText').value, '已複製建議版本。'));
-  $('copyWithNotesButton').addEventListener('click', copyWithNotes);
+}
+
+function renderCorpusStats() {
+  const text = `${PHRASE_ENTRIES.length} 筆用語＋${PATTERN_ENTRIES.length} 組結構規則`;
+  if ($('corpusStats')) $('corpusStats').textContent = text;
+  if ($('corpusVersion')) $('corpusVersion').textContent = CORPUS.version;
+  if ($('privacyCorpusStats')) $('privacyCorpusStats').textContent = text;
 }
 
 function enterApplication(saveSessionPreference) {
@@ -460,30 +804,6 @@ function updateCharCount() {
   $('charCount').textContent = `${$('sourceText').value.length} / 8000`;
 }
 
-function loadExample() {
-  $('audienceSelect').value = 'client';
-  $('purposeSelect').value = 'remind';
-  $('sourceText').value = '你們家真的很難搞，講幾次才懂？再不回我就不用服務你了！😡 [貼圖] 王小明的電話是0912345678，病歷號A123456，大家自己看著辦。';
-  updateCharCount();
-  $('sourceText').focus();
-}
-
-function clearAll() {
-  $('sourceText').value = '';
-  $('safeText').value = '';
-  $('resultContent').hidden = true;
-  $('emptyState').hidden = false;
-  $('riskBadge').className = 'risk-badge neutral';
-  $('riskBadge').textContent = '尚未檢核';
-  $('findingList').innerHTML = '';
-  $('copyStatus').textContent = '';
-  $('inputError').hidden = true;
-  clipboardImageDetected = false;
-  $('pasteNotice').hidden = true;
-  updateCharCount();
-  $('sourceText').focus();
-}
-
 function handlePasteInspection(event) {
   const items = [...(event.clipboardData?.items || [])];
   if (items.some(item => item.type.startsWith('image/'))) {
@@ -492,342 +812,40 @@ function handlePasteInspection(event) {
   }
 }
 
-function handleAnalyze() {
-  const raw = $('sourceText').value.trim();
-  if (!raw) {
-    $('inputError').textContent = '請先貼上準備傳送的訊息。';
-    $('inputError').hidden = false;
-    $('sourceText').focus();
-    return;
-  }
-  $('inputError').hidden = true;
-
-  const options = {
-    audience: $('audienceSelect').value,
-    purpose: $('purposeSelect').value,
-    removeEmoji: $('removeEmojiOption').checked,
-    maskPii: $('maskPiiOption').checked,
-    recordableTone: $('recordableToneOption').checked,
-    clipboardImageDetected
-  };
-
-  const result = analyzeMessage(raw, options);
-  renderResult(result);
+function loadExample() {
+  $('audienceSelect').value = 'coworker';
+  $('purposeSelect').value = 'correct';
+  $('toneSelect').value = 'directive';
+  $('sourceText').value = '晚上要不要~~~親親\\n口交\\n綠茶婊\\n啪啪啪啦%％%％%%\\n要%%%嗎?胸好大。';
+  $('topicText').value = '昨日交辦資料的版本與期限';
+  $('factText').value = '目前收到的檔案仍缺少附件二，且版本日期與會議確認內容不一致';
+  $('actionText').value = '重新確認附件二並上傳正確版本';
+  $('deadlineText').value = '今天下午 5 時前';
+  $('reasonText').value = '需於明日上午會議前完成彙整，避免後續使用錯誤版本';
+  updateCharCount();
+  $('sourceText').focus();
 }
 
-function analyzeMessage(raw, options) {
-  let safeText = raw.normalize('NFKC').replace(/[\u200B\u200C\u2060\uFEFF]/gu, '');
-  const findings = [];
-  const uniqueFindingKeys = new Set();
-  let removedCount = 0;
-  let score = 0;
-
-  const addFinding = (finding) => {
-    const key = `${finding.type}|${finding.fragment}|${finding.title}`;
-    if (uniqueFindingKeys.has(key)) return;
-    uniqueFindingKeys.add(key);
-    findings.push(finding);
-  };
-
-  if (options.clipboardImageDetected) {
-    score += 10;
-    removedCount += 1;
-    addFinding({
-      type: 'tone',
-      title: '剪貼簿圖片或貼圖',
-      severity: 'info',
-      fragment: '圖片內容未讀取',
-      reason: '貼圖或圖片可能包含嘲諷、性意味、威脅、個資或可識別人物。本網站基於資料最小化不讀取影像，建議改用明確、可留存的文字。',
-      legalNotes: [LEGAL_NOTES.bullying, LEGAL_NOTES.sexual, LEGAL_NOTES.privacy]
-    });
+function clearAll() {
+  for (const id of ['sourceText', 'topicText', 'factText', 'actionText', 'deadlineText', 'reasonText', 'safeText']) {
+    $(id).value = '';
   }
-
-  if (options.removeEmoji) {
-    const stickerMatches = [...safeText.matchAll(STICKER_REGEX)];
-    if (stickerMatches.length) {
-      removedCount += stickerMatches.length;
-      addFinding({
-        type: 'tone',
-        title: '貼圖標記',
-        severity: 'info',
-        fragment: stickerMatches.map(match => match[0]).join('、'),
-        reason: '貼圖的語意高度依賴圖像與上下文，正式紀錄難以還原，也可能含嘲諷、性意味或壓迫訊息。',
-        legalNotes: [LEGAL_NOTES.bullying, LEGAL_NOTES.sexual]
-      });
-      safeText = safeText.replace(STICKER_REGEX, '');
-    }
-
-    const emojiMatches = safeText.match(EMOJI_REGEX) || [];
-    if (emojiMatches.length) {
-      removedCount += emojiMatches.length;
-      addFinding({
-        type: 'tone',
-        title: '表情符號',
-        severity: 'info',
-        fragment: [...new Set(emojiMatches)].join(' '),
-        reason: '表情符號可能放大嘲諷、憤怒、性意味或輕蔑感，且不利正式紀錄與後續查證。',
-        legalNotes: [LEGAL_NOTES.bullying, LEGAL_NOTES.sexual]
-      });
-      safeText = safeText.replace(EMOJI_REGEX, '');
-    }
-
-    const excessive = safeText.match(EXCESSIVE_PUNCTUATION) || [];
-    if (excessive.length) {
-      removedCount += excessive.length;
-      addFinding({
-        type: 'tone',
-        title: '過度標點',
-        severity: 'info',
-        fragment: [...new Set(excessive)].join('、'),
-        reason: '連續驚嘆號或問號容易被理解為怒斥、嘲諷或施壓，宜改為單一標點。',
-        legalNotes: [LEGAL_NOTES.bullying]
-      });
-      safeText = safeText.replace(EXCESSIVE_PUNCTUATION, '$1');
-    }
-  }
-
-  const privacySource = safeText;
-
-  for (const rule of RISK_RULES) {
-    if (rule.audience && !rule.audience.includes(options.audience)) continue;
-    const matches = [...safeText.matchAll(rule.regex)];
-    if (!matches.length) continue;
-
-    score += rule.weight * Math.min(matches.length, 2);
-    for (const match of matches.slice(0, 3)) {
-      addFinding({
-        type: 'tone',
-        title: rule.category,
-        severity: rule.severity,
-        fragment: match[0],
-        reason: rule.reason,
-        legalNotes: rule.legal.map(key => LEGAL_NOTES[key]).filter(Boolean)
-      });
-    }
-
-    const before = safeText;
-    if (rule.severity === 'severe' || rule.replaceWholeSentence) {
-      safeText = replaceSentencesContaining(safeText, rule.regex, rule.replace);
-    } else {
-      safeText = safeText.replace(rule.regex, rule.replace);
-    }
-    if (safeText !== before) removedCount += matches.length;
-  }
-
-  const privacyFindings = [];
-  for (const rule of PII_RULES) {
-    const matches = [...privacySource.matchAll(rule.regex)];
-    if (!matches.length) continue;
-
-    privacyFindings.push({
-      type: 'privacy',
-      title: rule.title,
-      severity: 'severe',
-      fragment: matches.slice(0, 3).map(match => match[0]).join('、'),
-      reason: rule.reason,
-      legalNotes: [LEGAL_NOTES.privacy]
-    });
-    score += 12;
-
-    if (options.maskPii) {
-      safeText = safeText.replace(rule.regex, rule.replacement);
-      removedCount += matches.length;
-    }
-  }
-
-  const healthMatches = [...privacySource.matchAll(HEALTH_TERMS)].map(match => match[0]);
-  if (healthMatches.length) {
-    privacyFindings.push({
-      type: 'privacy',
-      title: '健康或醫療資訊',
-      severity: 'info',
-      fragment: [...new Set(healthMatches)].slice(0, 8).join('、'),
-      reason: '健康與醫療資訊通常具有高度敏感性。即使是傳給本人，也應確認群組成員、轉傳風險與是否真的需要寫入。',
-      legalNotes: [LEGAL_NOTES.privacy]
-    });
-    score += 5;
-  }
-
-  privacyFindings.forEach(addFinding);
-
-  safeText = cleanText(safeText);
-
-  const severeToneFindings = findings.filter(item => item.type === 'tone' && item.severity === 'severe').length;
-  const meaningfulLength = safeText.replace(/[\s，。；：、！？,.;:!?]/g, '').length;
-
-  if (meaningfulLength < 8 || severeToneFindings >= 2) {
-    safeText = buildFallbackMessage(options, severeToneFindings >= 2 ? '' : safeText);
-  } else if (options.recordableTone) {
-    safeText = makeRecordable(safeText, options);
-  }
-
-  if (!safeText) safeText = buildFallbackMessage(options, '');
-
-  const residualHits = [];
-  for (const residualRule of RESIDUAL_BLOCK_RULES) {
-    const hit = safeText.match(residualRule);
-    if (hit) residualHits.push(hit[0]);
-  }
-  if (residualHits.length) {
-    const uniqueResiduals = [...new Set(residualHits)];
-    score += 40;
-    removedCount += uniqueResiduals.length;
-    addFinding({
-      type: 'tone',
-      title: '防漏攔截：建議版本仍含明顯不當字詞',
-      severity: 'severe',
-      fragment: uniqueResiduals.slice(0, 5).join('、'),
-      reason: '第一輪規則處理後仍偵測到明顯辱罵、性別羞辱、威嚇或嘲弄語句。為避免系統把高風險原句重新輸出，已捨棄殘留內容並改用中性模板。',
-      legalNotes: [LEGAL_NOTES.bullying, LEGAL_NOTES.sexual, LEGAL_NOTES.dignity]
-    });
-    safeText = buildFallbackMessage(options, '');
-  }
-
-  score = Math.min(100, score);
-  const level = score >= 55 ? 'high' : score >= 20 ? 'medium' : 'low';
-  const label = level === 'high' ? '高風險：建議重寫後再傳送' : level === 'medium' ? '中度風險：建議確認脈絡' : '較低風險：仍請人工確認';
-
-  if (!findings.length) {
-    findings.push({
-      type: 'system',
-      title: '未發現明顯關鍵字風險',
-      severity: 'info',
-      fragment: '無',
-      reason: '規則引擎未發現明顯辱罵、威脅、性或性別言詞、貼圖標記或明顯個資格式；仍可能存在上下文、權勢關係、頻率或隱含語意風險。',
-      legalNotes: [LEGAL_NOTES.bullying]
-    });
-  }
-
-  return {
-    safeText,
-    findings,
-    score,
-    level,
-    label,
-    privacyCount: privacyFindings.length,
-    removedCount
-  };
-}
-
-function replaceSentencesContaining(text, regex, replacement) {
-  const flags = regex.flags.replace('g', '');
-  const tester = new RegExp(regex.source, flags);
-  const segments = text.split(/(?<=[。！？!?；;\n])/u);
-  return segments.map(segment => {
-    tester.lastIndex = 0;
-    if (!tester.test(segment)) return segment;
-    if (!replacement) return '';
-    const trimmed = replacement.trim();
-    return /[。！？!?]$/.test(trimmed) ? trimmed : `${trimmed}。`;
-  }).join('');
-}
-
-function cleanText(text) {
-  return text
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\s*([，。；：、！？])\s*/g, '$1')
-    .replace(/\s*([,.;:!?])\s*/g, '$1')
-    .replace(/([，；：、]){2,}/g, '$1')
-    .replace(/([,;:]){2,}/g, '$1')
-    .replace(/([。！？])[，,；;：:、]+/g, '$1')
-    .replace(/[，,；;：:、]+([。！？])/g, '$1')
-    .replace(/([。！？])[。！？]+/g, '$1')
-    .replace(/。{2,}/g, '。')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/真的很(?=目前|請|如|此)/g, '')
-    .replace(/^[，。；：、！？,.;:!?\s]+|[，；：、,;:\s]+$/g, '')
-    .trim();
-}
-
-function makeRecordable(text, options) {
-  let output = text;
-  output = output
-    .replace(/為什麼/gu, '請說明')
-    .replace(/到底/gu, '')
-    .replace(/你們/gu, options.audience === 'client' ? '您與家屬' : '各位')
-    .replace(/你/gu, options.audience === 'client' || options.audience === 'student' || options.audience === 'public' || options.audience === 'supervisor' ? '您' : '你')
-    .replace(/我不管/gu, '為利事項處理')
-    .replace(/給我/gu, '請')
-    .replace(/馬上|立刻/gu, '請優先')
-    .replace(/不要再/gu, '請停止')
-    .replace(/不能/gu, '目前無法')
-    .replace(/不准/gu, '請勿')
-    .replace(/隨便/gu, '請依規範')
-    .replace(/愛怎樣就怎樣/gu, '請依正式程序處理');
-
-  output = cleanText(output);
-  if (!/[。！？]$/.test(output)) output += '。';
-
-  const opening = OPENING_BY_AUDIENCE[options.audience] || '';
-  if (opening && !output.startsWith('您好')) output = opening + output;
-
-  if (!/(請|建議|麻煩|協助|依|確認|說明|回覆|處理)/.test(output)) {
-    output += `\n\n${TEMPLATE_BY_PURPOSE[options.purpose]}`;
-  }
-
-  return output;
-}
-
-function buildFallbackMessage(options, residualText) {
-  const opening = OPENING_BY_AUDIENCE[options.audience] || '';
-  const residual = cleanText(residualText);
-  const base = TEMPLATE_BY_PURPOSE[options.purpose] || TEMPLATE_BY_PURPOSE.general;
-  if (residual.length >= 8) {
-    const punctuated = /[。！？]$/.test(residual) ? residual : `${residual}。`;
-    return `${opening}${punctuated}\n\n${base}`;
-  }
-  return `${opening}${base}`;
-}
-
-function renderResult(result) {
-  $('emptyState').hidden = true;
-  $('resultContent').hidden = false;
-  $('safeText').value = result.safeText;
-  $('riskBadge').className = `risk-badge ${result.level}`;
-  $('riskBadge').textContent = `${result.label}（${result.score}）`;
-  $('findingCount').textContent = result.findings.filter(item => item.type === 'tone' && item.severity !== 'info').length;
-  $('privacyCount').textContent = result.privacyCount;
-  $('removedCount').textContent = result.removedCount;
+  $('resultContent').hidden = true;
+  $('emptyState').hidden = false;
+  $('riskBadge').className = 'risk-badge neutral';
+  $('riskBadge').textContent = '尚未檢核';
+  $('findingList').innerHTML = '';
   $('copyStatus').textContent = '';
-
-  const fragment = document.createDocumentFragment();
-  for (const finding of result.findings) {
-    const card = document.createElement('article');
-    card.className = `finding-card ${finding.severity === 'severe' ? 'severe' : finding.severity === 'info' ? 'info' : ''}`;
-
-    const top = document.createElement('div');
-    top.className = 'finding-top';
-    const title = document.createElement('div');
-    title.className = 'finding-title';
-    title.textContent = finding.title;
-    const severity = document.createElement('span');
-    severity.className = 'severity-label';
-    severity.textContent = finding.severity === 'severe' ? '較高風險' : finding.severity === 'info' ? '提醒' : '中度風險';
-    top.append(title, severity);
-
-    const quote = document.createElement('div');
-    quote.className = 'finding-fragment';
-    quote.textContent = finding.fragment;
-
-    const reason = document.createElement('p');
-    reason.textContent = finding.reason;
-
-    card.append(top, quote, reason);
-
-    for (const noteText of finding.legalNotes) {
-      const note = document.createElement('p');
-      note.className = 'legal-note';
-      note.textContent = `法制提醒：${noteText}`;
-      card.appendChild(note);
-    }
-
-    fragment.appendChild(card);
-  }
-  $('findingList').replaceChildren(fragment);
-  $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('inputError').hidden = true;
+  $('copyButton').disabled = false;
+  clipboardImageDetected = false;
+  $('pasteNotice').hidden = true;
+  updateCharCount();
+  $('sourceText').focus();
 }
 
 async function copyText(text, successMessage) {
+  if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
     $('copyStatus').textContent = successMessage;
@@ -837,18 +855,6 @@ async function copyText(text, successMessage) {
     const copied = document.execCommand('copy');
     $('copyStatus').textContent = copied ? successMessage : '瀏覽器未允許自動複製，請手動選取文字。';
   }
-}
-
-function copyWithNotes() {
-  const notes = [...$('findingList').querySelectorAll('.finding-card')].map((card, index) => {
-    const title = card.querySelector('.finding-title')?.textContent || '提醒';
-    const fragment = card.querySelector('.finding-fragment')?.textContent || '';
-    const paragraphs = [...card.querySelectorAll('p')].map(p => p.textContent).join('\n');
-    return `${index + 1}. ${title}\n原片段：${fragment}\n${paragraphs}`;
-  }).join('\n\n');
-
-  const combined = `【建議版本】\n${$('safeText').value}\n\n【修改備註】\n${notes}\n\n【使用界線】\n以上為傳送前風險提示，不是違法、職場霸凌、性騷擾或跟蹤騷擾成立與否的法律認定。`;
-  copyText(combined, '已複製建議版本與備註。');
 }
 
 function renderLegalReferences() {
@@ -873,9 +879,20 @@ function renderLegalReferences() {
   $('legalReferenceGrid').replaceChildren(fragment);
 }
 
-document.addEventListener('DOMContentLoaded', initialize);
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('DOMContentLoaded', initialize);
+}
 
-// Exported for lightweight local tests; ignored by browsers.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { analyzeMessage, cleanText, makeRecordable, buildFallbackMessage };
+  module.exports = {
+    analyzeMessage,
+    scanCorpus,
+    scanPii,
+    sanitizeOutputField,
+    sanitizeSubstance,
+    composeSafeMessage,
+    cleanText,
+    normalizeText,
+    CORPUS
+  };
 }
