@@ -13,7 +13,9 @@ if %errorlevel%==0 (
 )
 echo.
 echo [找不到 Python]
-echo 仍可直接開啟 index.html 使用完整的本機混合語言模型。
-echo 若瀏覽器限制麥克風或其他功能，建議安裝 Python 後再執行 start-local.bat。
+echo 建議安裝 Python 後再執行本檔，才能使用本機 LLM proxy。
+echo 你仍可直接開啟 index.html；若 LM Studio 允許瀏覽器跨來源連線，Qwen 仍可能可用。
+echo.
+echo LM Studio 預設：Developer ^> Start Server，Base URL http://127.0.0.1:1234/v1
 echo.
 pause

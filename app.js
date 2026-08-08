@@ -1,4 +1,4 @@
-/* Respectful Message Guard 2.2.0 - consolidated production runtime */
+/* Respectful Message Guard 2.3.0 - consolidated production runtime */
 /* Section 1: structured rewrite engine */
 'use strict';
 
@@ -10,7 +10,7 @@
  *
  * Design constraints:
  * - high-quality weighted variation; text generation stays local;
- * - no network / no external model;
+ * - Qwen3.5-0.8B is accessed through a local OpenAI-compatible endpoint;
  * - never invent facts, legal conclusions, sanctions, dates, people or motives;
  * - basis/職務依據 is an internal safety field by default and is not exposed
  *   unless the user explicitly enables includeBasis;
@@ -31,147 +31,8 @@
     return { stylePatterns: {}, version: 'unavailable' };
   })();
 
-  // v2.1: embedded domain neural language model.  This is deliberately a
-  // compact, task-specific GRU rather than a general-purpose cloud LLM.  It
-  // runs entirely in the page and is used only to score fluency/transition
-  // quality among already-safe candidates.  Safety and work-reasonableness
-  // decisions remain in auditable rules.
-  const DOMAIN_LM_DATA = (() => {
-    if (typeof globalThis !== 'undefined' && globalThis.LOCAL_DOMAIN_LM_DATA) return globalThis.LOCAL_DOMAIN_LM_DATA;
-    if (typeof module !== 'undefined' && module.exports) {
-      try { return require('./model/local-domain-lm.js'); } catch (_) { return null; }
-    }
-    return null;
-  })();
-
-  function decodeFloat32Base64(value) {
-    if (!value) return new Float32Array(0);
-    if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
-      const b = Buffer.from(value, 'base64');
-      return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
-    }
-    const binary = atob(value);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new Float32Array(bytes.buffer);
-  }
-
-  function createDomainLanguageModel(data) {
-    if (!data?.weights || !Array.isArray(data.tokens)) return null;
-    let ready = false;
-    let embedding, wih, whh, bih, bhh, outw, outb, stoi, byFirst;
-    const V = Number(data.vocabSize || data.tokens.length);
-    const E = Number(data.embeddingSize || 0);
-    const H = Number(data.hiddenSize || 0);
-    const cache = new Map();
-
-    function ensure() {
-      if (ready) return true;
-      try {
-        embedding = decodeFloat32Base64(data.weights.embedding);
-        wih = decodeFloat32Base64(data.weights.weight_ih);
-        whh = decodeFloat32Base64(data.weights.weight_hh);
-        bih = decodeFloat32Base64(data.weights.bias_ih);
-        bhh = decodeFloat32Base64(data.weights.bias_hh);
-        outw = decodeFloat32Base64(data.weights.out_weight);
-        outb = decodeFloat32Base64(data.weights.out_bias);
-        stoi = new Map(data.tokens.map((t, i) => [t, i]));
-        byFirst = new Map();
-        for (const phrase of (data.phrases || [])) {
-          if (!phrase || phrase.length < 2) continue;
-          const list = byFirst.get(phrase[0]) || [];
-          list.push(phrase); byFirst.set(phrase[0], list);
-        }
-        for (const list of byFirst.values()) list.sort((a, b) => b.length - a.length);
-        ready = embedding.length === V * E && wih.length === 3 * H * E && whh.length === 3 * H * H;
-      } catch (_) { ready = false; }
-      return ready;
-    }
-
-    function tokenize(text) {
-      if (!ensure()) return [];
-      const ids = [stoi.get('<BOS>') ?? 1];
-      const unk = stoi.get('<UNK>') ?? 3;
-      const value = String(text || '').replace(/\s+/gu, '');
-      let i = 0;
-      while (i < value.length) {
-        let picked = '';
-        for (const phrase of (byFirst.get(value[i]) || [])) {
-          if (value.startsWith(phrase, i)) { picked = phrase; break; }
-        }
-        if (picked) { ids.push(stoi.get(picked) ?? unk); i += picked.length; }
-        else { ids.push(stoi.get(value[i]) ?? unk); i += 1; }
-      }
-      ids.push(stoi.get('<EOS>') ?? 2);
-      return ids;
-    }
-
-    function sigmoid(x) { return x >= 0 ? 1 / (1 + Math.exp(-x)) : Math.exp(x) / (1 + Math.exp(x)); }
-
-    function step(tokenId, h) {
-      const gatesX = new Float32Array(3 * H);
-      const eoff = tokenId * E;
-      for (let g = 0; g < 3 * H; g++) {
-        let sum = bih[g] || 0;
-        const row = g * E;
-        for (let j = 0; j < E; j++) sum += wih[row + j] * embedding[eoff + j];
-        gatesX[g] = sum;
-      }
-      const r = new Float32Array(H), z = new Float32Array(H), n = new Float32Array(H);
-      for (let i = 0; i < H; i++) {
-        let hr = bhh[i] || 0, hz = bhh[H + i] || 0;
-        const rr = i * H, rz = (H + i) * H;
-        for (let j = 0; j < H; j++) { hr += whh[rr + j] * h[j]; hz += whh[rz + j] * h[j]; }
-        r[i] = sigmoid(gatesX[i] + hr);
-        z[i] = sigmoid(gatesX[H + i] + hz);
-      }
-      for (let i = 0; i < H; i++) {
-        let hn = bhh[2 * H + i] || 0;
-        const rn = (2 * H + i) * H;
-        for (let j = 0; j < H; j++) hn += whh[rn + j] * h[j];
-        n[i] = Math.tanh(gatesX[2 * H + i] + r[i] * hn);
-      }
-      const next = new Float32Array(H);
-      for (let i = 0; i < H; i++) next[i] = (1 - z[i]) * n[i] + z[i] * h[i];
-      return next;
-    }
-
-    function logProbTarget(h, target) {
-      let max = -Infinity;
-      const logits = new Float32Array(V);
-      for (let v = 0; v < V; v++) {
-        let x = outb[v] || 0;
-        const row = v * H;
-        for (let j = 0; j < H; j++) x += outw[row + j] * h[j];
-        logits[v] = x; if (x > max) max = x;
-      }
-      let denom = 0;
-      for (let v = 0; v < V; v++) denom += Math.exp(logits[v] - max);
-      return logits[target] - max - Math.log(denom || 1);
-    }
-
-    function score(text) {
-      const key = String(text || '');
-      if (!key) return -20;
-      if (cache.has(key)) return cache.get(key);
-      if (!ensure()) return -6;
-      const ids = tokenize(key);
-      if (ids.length < 2) return -10;
-      let h = new Float32Array(H), total = 0, count = 0;
-      for (let i = 0; i < ids.length - 1; i++) {
-        h = step(ids[i], h);
-        total += logProbTarget(h, ids[i + 1]); count++;
-      }
-      const avg = total / Math.max(1, count);
-      cache.set(key, avg);
-      if (cache.size > 600) cache.delete(cache.keys().next().value);
-      return avg;
-    }
-
-    return { score, version: data.version || 'unknown', type: data.type || 'domain-gru' };
-  }
-
-  const DOMAIN_LM = createDomainLanguageModel(DOMAIN_LM_DATA);
+  // Qwen3.5-0.8B is now the primary language model through the local LLM bridge.
+  // This transparent transition model remains as an offline fallback/risk-aware scorer.
 
   // Corpus-derived transition model.  It gives every adjacent character/token
   // sequence a local weight based on how often it occurs in safe work messages
@@ -1028,10 +889,6 @@
     // sentence cannot override a safety rule or reintroduce a blocked phrase.
     score += lexicalPolicyScore(text, style, tone);
     score += TRANSITION_MODEL.score(text);
-    if (DOMAIN_LM) {
-      const avgLogProb = DOMAIN_LM.score(text); // typical domain text ≈ -3 to -6
-      score += Math.max(-14, Math.min(12, (avgLogProb + 5.2) * 5.0));
-    }
     if (typeof globalThis !== 'undefined' && typeof globalThis.RMG_DYNAMIC_RISK_SCORE === 'function') {
       score -= Math.max(0, Number(globalThis.RMG_DYNAMIC_RISK_SCORE(text) || 0));
     }
@@ -1182,7 +1039,6 @@
 
   return {
     rewriteStructuredMessage,
-    domainLanguageModel: DOMAIN_LM ? { version: DOMAIN_LM.version, type: DOMAIN_LM.type } : null,
     transitionModel: { safeBigrams: TRANSITION_MODEL.safeBigramCount, safeTrigrams: TRANSITION_MODEL.safeTrigramCount, riskBigrams: TRANSITION_MODEL.riskBigramCount },
     buildCandidate,
     scoreCandidate,
@@ -1922,62 +1778,248 @@
   return { extract, normalize, splitClauses, extractDeadline, canonicalAction, canonicalFact, detectAudienceHint, decopySubstance, copiedSentenceRisk, retrieveSafeScenario, safeActionLooksExecutable, safeCorpusVersion: SAFE_CORPUS.version || 'unknown' };
 });
 
-/* Section 3: fully offline hybrid execution bridge */
+/* Section 3: Qwen3.5 / OpenAI-compatible local LLM bridge */
 'use strict';
 
-(function initHybridBridge(root) {
-  const mode = 'hybrid-local';
+(function initQwenBridge(root) {
+  const CONFIG_KEY = 'rmg:llm-config:v1';
+  const DEFAULT_CONFIG = {
+    enabled: true,
+    mode: 'extract-rewrite',
+    baseUrl: 'http://127.0.0.1:1234/v1',
+    model: '',
+    apiKey: '',
+    strictQwen: true,
+    temperature: 0.55,
+    timeoutMs: 90000
+  };
   let statusCallback = null;
+  let sessionApiKey = '';
+  let lastModels = [];
+  let lastStatus = { state:'idle', detail:'Qwen3.5-0.8B 尚未連線', mode:'qwen-openai-compatible' };
 
-  function report(state, detail) {
-    if (typeof statusCallback === 'function') statusCallback({ state, detail, mode });
+  function cleanBaseUrl(value) {
+    let url = String(value || DEFAULT_CONFIG.baseUrl).trim().replace(/\/+$/u, '');
+    if (!/\/v1$/u.test(url)) url += '/v1';
+    return url;
+  }
+
+  function loadConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
+      return { ...DEFAULT_CONFIG, ...saved, baseUrl: cleanBaseUrl(saved.baseUrl || DEFAULT_CONFIG.baseUrl), apiKey: sessionApiKey };
+    } catch (_) { return { ...DEFAULT_CONFIG }; }
+  }
+
+  function saveConfig(patch = {}) {
+    const next = { ...loadConfig(), ...patch };
+    next.baseUrl = cleanBaseUrl(next.baseUrl);
+    if (Object.prototype.hasOwnProperty.call(patch, 'apiKey')) sessionApiKey = String(patch.apiKey || '');
+    next.apiKey = sessionApiKey;
+    const persisted = { ...next }; delete persisted.apiKey;
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(persisted)); } catch (_) {}
+    return next;
+  }
+
+  function report(state, detail, extra = {}) {
+    lastStatus = { state, detail, mode:'qwen-openai-compatible', ...extra };
+    if (typeof statusCallback === 'function') statusCallback(lastStatus);
+    return lastStatus;
+  }
+
+  function qwenLike(model) {
+    const m = String(model || '').toLowerCase().replace(/[_\s]/gu, '-');
+    return /qwen[-.]?3[.]?5/u.test(m) && /0[.]?8b/u.test(m);
+  }
+
+  async function proxyRequest(kind, payload = {}, config = loadConfig()) {
+    const body = { baseUrl: cleanBaseUrl(config.baseUrl), apiKey: config.apiKey || '', ...payload };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(config.timeoutMs || 90000)));
+    try {
+      // Preferred path: same-origin Python proxy. It avoids CORS/private-network restrictions.
+      const response = await fetch(`/api/llm/${kind}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:controller.signal
+      });
+      if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+      return await response.json();
+    } catch (proxyError) {
+      // Fallback for static hosting/direct index.html: call the OpenAI-compatible endpoint directly.
+      const endpoint = `${cleanBaseUrl(config.baseUrl)}/${kind === 'models' ? 'models' : 'chat/completions'}`;
+      const headers = {'Content-Type':'application/json'};
+      if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+      const directBody = kind === 'models' ? undefined : JSON.stringify(payload.request || payload);
+      const direct = await fetch(endpoint, { method: kind === 'models' ? 'GET' : 'POST', headers, body:directBody, signal:controller.signal });
+      if (!direct.ok) throw new Error((await direct.text()) || `HTTP ${direct.status}`);
+      return await direct.json();
+    } finally { clearTimeout(timer); }
+  }
+
+  async function listModels(config = loadConfig()) {
+    const data = await proxyRequest('models', {}, config);
+    const models = Array.isArray(data?.data) ? data.data.map(x => String(x?.id || '')).filter(Boolean) : [];
+    lastModels = models;
+    return models;
+  }
+
+  function chooseModel(models, config = loadConfig()) {
+    if (config.model && models.includes(config.model)) return config.model;
+    const qwen = models.find(qwenLike);
+    return qwen || models[0] || config.model || '';
+  }
+
+  async function testConnection(configPatch = {}) {
+    const config = saveConfig(configPatch);
+    report('loading', '正在連線本機 LLM…');
+    try {
+      const models = await listModels(config);
+      const model = chooseModel(models, config);
+      if (!model) throw new Error('LLM 伺服器已回應，但目前沒有可用模型。請先在 LM Studio 載入 Qwen3.5-0.8B-GGUF。');
+      saveConfig({ model });
+      if (config.strictQwen && !qwenLike(model)) {
+        report('warning', `已連線，但目前模型是「${model}」；建議改載入 Qwen3.5-0.8B-GGUF。`, { models, model });
+      } else {
+        report('ready', `Qwen3.5-0.8B 已連線｜${model}`, { models, model });
+      }
+      return { ok:true, models, model, qwen:qwenLike(model) };
+    } catch (error) {
+      report('error', `LLM 未連線：${error?.message || error}`);
+      return { ok:false, error:String(error?.message || error), models:[] };
+    }
+  }
+
+  function extractJson(text) {
+    const raw = String(text || '').trim();
+    if (!raw) throw new Error('LLM 回傳空白內容');
+    try { return JSON.parse(raw); } catch (_) {}
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/iu);
+    if (fenced) { try { return JSON.parse(fenced[1].trim()); } catch (_) {} }
+    const first = raw.indexOf('{'), last = raw.lastIndexOf('}');
+    if (first >= 0 && last > first) return JSON.parse(raw.slice(first, last + 1));
+    throw new Error('LLM 未回傳可解析的 JSON');
+  }
+
+  async function chat(messages, { temperature = 0.4, maxTokens = 1000, config: configPatch = {}, responseFormat = true } = {}) {
+    const config = { ...loadConfig(), ...configPatch };
+    if (!config.enabled) throw new Error('LLM 已停用');
+    let model = config.model;
+    if (!model) {
+      const models = await listModels(config);
+      model = chooseModel(models, config);
+      if (!model) throw new Error('找不到已載入的 LLM 模型');
+      saveConfig({ model });
+    }
+    if (config.strictQwen && !qwenLike(model)) throw new Error(`目前選取模型「${model}」不是 Qwen3.5-0.8B；請在 LLM 設定切換模型或關閉嚴格限制。`);
+    const request = {
+      model, messages, temperature: Number(temperature), max_tokens: Number(maxTokens), stream:false
+    };
+    if (responseFormat) request.response_format = { type:'json_object' };
+    let data;
+    try {
+      data = await proxyRequest('chat', { request }, config);
+    } catch (error) {
+      // Some OpenAI-compatible servers/models do not implement response_format. Retry without it.
+      if (responseFormat) {
+        delete request.response_format;
+        data = await proxyRequest('chat', { request }, config);
+      } else throw error;
+    }
+    const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
+    if (!String(content).trim()) throw new Error('LLM 沒有回傳文字');
+    return { content:String(content), model, raw:data };
+  }
+
+  function baseSystemPrompt() {
+    return `你是繁體中文（臺灣）職場與專業工作溝通編輯器。你的任務不是替辱罵、威脅、性騷擾、申訴報復或不合理命令洗白，而是抽出其中真正必要、可核對、可執行的工作內容。\n\n原則：\n1. 絕不新增原文沒有的人名、日期、金額、制裁、法律結論、動機或事實。\n2. 人格羞辱、嘲諷、災難化、情緒勒索、性化要求、工作利益威脅、申訴報復只可作為風險背景，不可變成工作指示。\n3. 醫療、法律、教育、研究等專業必要術語可保留，但要區分「引用／描述／否定／專業紀錄」與「直接攻擊／直接性要求」。\n4. 主管可以直接要求修正、設定合理期限與說明標準；不需要刻意變得討好或模糊。\n5. 使用臺灣繁體中文與自然工作語氣。`;
+  }
+
+  async function refineExtraction(raw, fallbackExtraction, options = {}) {
+    const config = loadConfig();
+    if (!config.enabled || !['extract-rewrite','extract'].includes(config.mode)) return null;
+    const fallback = fallbackExtraction?.substance || {};
+    const messages = [
+      { role:'system', content:baseSystemPrompt() + `\n\n請只輸出 JSON，不要 Markdown。` },
+      { role:'user', content:`從下列原始訊息抽取真正工作意圖。若有多個工作事項，可在同一欄用「；」分項，但不要遺失重要工作要求。若原文只有騷擾／私人要求而沒有合理工作內容，對應欄位留空並把 needsInput 設為 true。\n\n原始訊息：\n${raw}\n\n規則引擎初步抽取（僅供參考，可修正）：\n${JSON.stringify(fallback)}\n\n回傳格式：\n{"topic":"","fact":"","action":"","deadline":"","reason":"","needsInput":false,"confidence":"high|medium|low","evidence":{"topic":"","fact":"","action":"","deadline":"","reason":""}}` }
+    ];
+    const result = await chat(messages, { temperature:0.12, maxTokens:900, config });
+    const obj = extractJson(result.content);
+    const substance = {};
+    for (const key of ['topic','fact','action','deadline','reason']) substance[key] = String(obj?.[key] || '').trim().slice(0, key === 'deadline' ? 240 : 1600);
+    return {
+      substance,
+      needsInput:Boolean(obj?.needsInput) || ![substance.topic,substance.fact,substance.action].some(Boolean),
+      confidence:['high','medium','low'].includes(obj?.confidence) ? obj.confidence : 'medium',
+      evidence: Object.fromEntries(['topic','fact','action','deadline','reason'].map(k => [k, String(obj?.evidence?.[k] || '').trim().slice(0,160)])),
+      extractedFields:['topic','fact','action','deadline','reason'].filter(k => substance[k]),
+      audienceHint:fallbackExtraction?.audienceHint || null,
+      corpusSuggestion:fallbackExtraction?.corpusSuggestion || null,
+      notice:'Qwen3.5-0.8B 已重新檢視原始訊息並整理工作意圖。',
+      llmModel:result.model
+    };
+  }
+
+  async function rewrite(substance, options = {}) {
+    const config = loadConfig();
+    if (!config.enabled || !['extract-rewrite','rewrite'].includes(config.mode)) return null;
+    const styleMap = { natural:'自然工作訊息', concise:'精簡直接', formal:'正式書面' };
+    const toneMap = { cooperative:'協調、留有討論空間', directive:'明確督導、要求執行', formal:'正式嚴正、保留程序' };
+    const audienceMap = { coworker:'同事或部屬', supervisor:'主管', client:'案家、服務對象或家屬', student:'學生、家長或受訓者', public:'一般民眾或外部合作對象' };
+    const payload = {
+      topic:substance.topic || '', fact:substance.fact || '', action:substance.action || '', deadline:substance.deadline || '', reason:substance.reason || '',
+      basis: options.includeBasis ? (substance.basis || '') : '', audience:audienceMap[options.audience] || options.audience || '', tone:toneMap[substance.tone || options.tone] || '', purpose:options.purpose || ''
+    };
+    const messages = [
+      { role:'system', content:baseSystemPrompt() + `\n\n你只會收到已經去毒、結構化的工作內容。請依內容重新寫成完整句子，而不是把欄位機械拼接。只輸出 JSON，不要 Markdown。` },
+      { role:'user', content:`請將以下工作內容生成三個版本。\n\n${JSON.stringify(payload)}\n\n要求：\n- natural：最像真人平常會傳的工作訊息，通順、清楚、直接。\n- concise：保留必要事實、行動、期限，盡量精簡。\n- formal：正式、可留存，但不要堆砌公文套語。\n- 三個版本都不得加入輸入中不存在的新事實。\n- 不要使用「想確認一下」「溫馨提醒」「麻煩一下」等無必要的軟化套語，除非確實符合協調型語氣。\n- 不要輸出分析。\n\n回傳格式：\n{"natural":"","concise":"","formal":""}` }
+    ];
+    const result = await chat(messages, { temperature:Number(config.temperature || 0.55), maxTokens:1100, config });
+    const obj = extractJson(result.content);
+    const variants = {};
+    for (const key of ['natural','concise','formal']) variants[key] = String(obj?.[key] || '').trim().slice(0,4000);
+    const style = options.rewriteStyle || 'natural';
+    const text = variants[style] || variants.natural || variants.concise || variants.formal || '';
+    return { text, variants, style, model:result.model, engine:'qwen3.5-openai-compatible' };
   }
 
   async function initialize({ onStatus } = {}) {
     if (onStatus) statusCallback = onStatus;
-    const model = root.MESSAGE_REWRITE_ENGINE?.domainLanguageModel;
-    const detail = model
-      ? `本機混合語言模型（領域神經語言模型＋情境接龍＋風險規則）`
-      : '本機混合語言引擎（情境接龍＋風險規則）';
-    report('ready', detail);
-    return mode;
+    const config = loadConfig();
+    if (!config.enabled) { report('fallback', 'LLM 已停用｜使用本機規則備援'); return 'fallback'; }
+    // Do not block page startup on a model server. Probe in background.
+    report('idle', 'Qwen3.5-0.8B｜等待本機 LLM');
+    setTimeout(() => testConnection().catch(() => {}), 50);
+    return 'qwen-openai-compatible';
   }
 
-  function jsProcess(payload) {
-    const intent = root.MESSAGE_INTENT_ENGINE.extract(payload.raw || '', payload.substance || {}, payload.options || {});
-    const rawSubstance = intent.substance;
-    const sanitized = typeof root.RMG_SANITIZE_STRUCTURED === 'function'
-      ? root.RMG_SANITIZE_STRUCTURED(rawSubstance, payload.options || {})
-      : { substance: rawSubstance, blocked: 0 };
-    const s = sanitized.substance;
-    intent.substance = s;
-    const rewrite = root.MESSAGE_REWRITE_ENGINE.rewriteStructuredMessage(s, payload.options || {});
-    const variants = rewrite.variants || {};
-    let selected = rewrite.text || '';
-    const copyRisk = root.MESSAGE_INTENT_ENGINE.copiedSentenceRisk(payload.raw || '', selected);
-    if (copyRisk.copied) {
-      const alternateStyle = (payload.options?.rewriteStyle || 'natural') === 'formal' ? 'natural' : 'formal';
-      selected = variants[alternateStyle] || selected;
-    }
-    return {
-      engine: mode,
-      engineVersion: '2.2.0',
-      extraction: intent,
-      substance: s,
-      ...rewrite,
-      text: intent.needsInput ? '' : selected,
-      copyable: Boolean(!intent.needsInput && selected),
-      notice: intent.needsInput
-        ? intent.notice
-        : `本機混合語言模型已${intent.extractedFields.length ? '抽取工作意圖並補全' : '依確認後工作內容'}，再以情境接龍、詞彙權重與神經流暢度重新排序候選；不會直接複製原句。`
-    };
+  function jsFallback(payload) {
+    const rewrite = root.MESSAGE_REWRITE_ENGINE.rewriteStructuredMessage(payload.substance || {}, payload.options || {});
+    return { engine:'rules-fallback', ...rewrite, notice:`LLM 未使用；已由本機規則與安全語料備援生成。${rewrite.notice ? ' ' + rewrite.notice : ''}` };
   }
 
   async function process(payload) {
-    return jsProcess(payload);
+    const config = loadConfig();
+    if (config.enabled && ['extract-rewrite','rewrite'].includes(config.mode)) {
+      try {
+        const llm = await rewrite(payload.substance || {}, payload.options || {});
+        if (llm?.text) {
+          report('ready', `Qwen3.5-0.8B 已啟用｜${llm.model}`);
+          return {
+            engine:'qwen3.5-openai-compatible', engineVersion:'2.3.0', ...llm,
+            copyable:true,
+            notice:`Qwen3.5-0.8B 已依確認後的工作內容重新生成；輸出仍會再經本機霸凌／騷擾與工作合理性防漏。`
+          };
+        }
+      } catch (error) {
+        report('fallback', `Qwen 暫不可用，已切換本機規則備援｜${error?.message || error}`);
+      }
+    }
+    return jsFallback(payload);
   }
 
-  root.MESSAGE_ENGINE_BRIDGE = { initialize, process, getMode: () => mode, jsProcess };
+  root.MESSAGE_ENGINE_BRIDGE = {
+    initialize, process, refineExtraction, listModels, testConnection, loadConfig, saveConfig,
+    getMode:() => 'qwen-openai-compatible', getStatus:() => lastStatus, getModels:() => [...lastModels], qwenLike
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 /* Section 4: application and risk analysis */
@@ -3741,7 +3783,7 @@ function refreshLiveExtraction({ overwriteManual = false } = {}) {
     const manual = overwriteManual ? { tone:$('toneSelect').value } : readManualOverrides();
     const extraction = INTENT_ENGINE.extract(raw, manual, extractionOptions());
     applyLiveExtraction(extraction, { overwriteManual });
-    renderExtractionStatus(extraction, '本機混合語言模型');
+    renderExtractionStatus(extraction, '即時規則抽取');
     return extraction;
   } catch (error) {
     console.error('即時工作意圖抽取失敗', error);
@@ -3806,7 +3848,7 @@ async function handleAnalyze() {
   };
 
   let extraction = latestLiveExtraction;
-  let engineLabel = '本機混合語言模型';
+  let engineLabel = 'Qwen3.5-0.8B';
 
   try {
     // 按下產生時強制以「現在的原始訊息＋現在的人工修正」重跑一次抽取。
@@ -3815,7 +3857,25 @@ async function handleAnalyze() {
       const manualOverrides = readManualOverrides();
       extraction = INTENT_ENGINE.extract(raw, manualOverrides, options);
       applyLiveExtraction(extraction);
-      renderExtractionStatus(extraction, engineLabel);
+      renderExtractionStatus(extraction, '規則初步抽取');
+
+      // Qwen3.5 可進一步理解原始訊息。步驟二仍只是步驟一的可編輯投影；
+      // 人工修正欄位不會被 LLM 蓋掉。LLM 不可用時直接保留規則抽取。
+      if (ENGINE_BRIDGE?.refineExtraction) {
+        try {
+          const llmExtraction = await ENGINE_BRIDGE.refineExtraction(raw, extraction, options);
+          if (llmExtraction?.substance) {
+            extraction = llmExtraction;
+            applyLiveExtraction(extraction);
+            engineLabel = `Qwen3.5-0.8B${llmExtraction.llmModel ? `｜${llmExtraction.llmModel}` : ''}`;
+            renderExtractionStatus(extraction, engineLabel);
+          }
+        } catch (llmExtractionError) {
+          console.warn('Qwen 工作意圖抽取暫不可用，保留規則抽取', llmExtractionError);
+          engineLabel = '規則抽取＋Qwen 備援未連線';
+          renderExtractionStatus(extraction, engineLabel);
+        }
+      }
     }
 
     // 這裡才讀取表單：現在的值已是「原始訊息自動抽取＋使用者人工修正」的最終確認版。
@@ -3830,7 +3890,7 @@ async function handleAnalyze() {
     let rewritten;
     if (ENGINE_BRIDGE) {
       rewritten = await ENGINE_BRIDGE.process({ raw: '', substance: sanitizedForRewrite, options: rewriteOptions });
-      engineLabel = rewritten?.engine === 'javascript' ? '本機 JavaScript' : '本機混合語言模型';
+      engineLabel = rewritten?.engine === 'qwen3.5-openai-compatible' ? `Qwen3.5-0.8B${rewritten?.model ? `｜${rewritten.model}` : ''}` : '本機規則備援';
     } else {
       rewritten = { ...composeSafeMessage(sanitizedForRewrite, rewriteOptions), engine: 'hybrid-local' };
     }
@@ -4652,6 +4712,7 @@ function initialize() {
   renderFeedbackStats();
   initializeSmartFields();
   initializeVoiceInput();
+  initializeLlmSettingsUi();
   initializeRewriteBridge();
   for(const key of ['topic','fact','action','deadline','reason']) setFieldOrigin(key,'neutral',''); setFieldOrigin('basis','manual',''); renderLiveExtraction(null);
 
@@ -4659,20 +4720,104 @@ function initialize() {
   enterApplication(false);
 }
 
+function setLlmSettingsStatus(message, state = '') {
+  const node = $('llmSettingsStatus');
+  if (!node) return;
+  node.textContent = message || '';
+  node.className = `llm-status ${state || ''}`.trim();
+}
+
+function collectLlmSettingsForm() {
+  return {
+    enabled: Boolean($('llmEnabled')?.checked),
+    mode: $('llmMode')?.value || 'extract-rewrite',
+    baseUrl: $('llmBaseUrl')?.value?.trim() || 'http://127.0.0.1:1234/v1',
+    model: $('llmModelSelect')?.value || '',
+    apiKey: $('llmApiKey')?.value || '',
+    strictQwen: Boolean($('llmStrictQwen')?.checked)
+  };
+}
+
+function populateLlmModelSelect(models = [], selected = '') {
+  const select = $('llmModelSelect');
+  if (!select) return;
+  const preferred = selected || select.value || '';
+  select.replaceChildren();
+  const auto = document.createElement('option');
+  auto.value = '';
+  auto.textContent = '自動偵測 Qwen3.5-0.8B';
+  select.appendChild(auto);
+  for (const model of models) {
+    const option = document.createElement('option');
+    option.value = model;
+    option.textContent = ENGINE_BRIDGE?.qwenLike?.(model) ? `${model} ✓ Qwen3.5-0.8B` : model;
+    select.appendChild(option);
+  }
+  if (preferred && [...select.options].some(o => o.value === preferred)) select.value = preferred;
+}
+
+function initializeLlmSettingsUi() {
+  if (!ENGINE_BRIDGE?.loadConfig) return;
+  const config = ENGINE_BRIDGE.loadConfig();
+  if ($('llmEnabled')) $('llmEnabled').checked = config.enabled !== false;
+  if ($('llmMode')) $('llmMode').value = config.mode || 'extract-rewrite';
+  if ($('llmBaseUrl')) $('llmBaseUrl').value = config.baseUrl || 'http://127.0.0.1:1234/v1';
+  if ($('llmStrictQwen')) $('llmStrictQwen').checked = config.strictQwen !== false;
+  if ($('llmApiKey')) $('llmApiKey').value = '';
+  populateLlmModelSelect(ENGINE_BRIDGE.getModels?.() || [], config.model || '');
+  const status = ENGINE_BRIDGE.getStatus?.();
+  setLlmSettingsStatus(status?.detail || '尚未測試', status?.state || '');
+}
+
+async function refreshLlmModels({ test = false } = {}) {
+  if (!ENGINE_BRIDGE) return;
+  const button = test ? $('testLlmButton') : $('refreshLlmModelsButton');
+  if (button) button.disabled = true;
+  setLlmSettingsStatus(test ? '正在測試 Qwen 連線…' : '正在讀取模型…');
+  try {
+    const form = collectLlmSettingsForm();
+    ENGINE_BRIDGE.saveConfig(form);
+    if (test) {
+      const result = await ENGINE_BRIDGE.testConnection(form);
+      populateLlmModelSelect(result.models || [], result.model || form.model || '');
+      if (result.ok) setLlmSettingsStatus(result.qwen ? `連線成功｜${result.model}` : `已連線，但目前不是 Qwen3.5-0.8B｜${result.model}`, result.qwen ? 'ready' : 'warning');
+      else setLlmSettingsStatus(result.error || '連線失敗', 'error');
+    } else {
+      const models = await ENGINE_BRIDGE.listModels(form);
+      const saved = ENGINE_BRIDGE.loadConfig();
+      populateLlmModelSelect(models, saved.model || form.model || '');
+      setLlmSettingsStatus(models.length ? `找到 ${models.length} 個模型` : '伺服器已回應，但沒有已載入模型', models.length ? 'ready' : 'warning');
+    }
+  } catch (error) {
+    setLlmSettingsStatus(`無法連線：${error?.message || error}`, 'error');
+  } finally { if (button) button.disabled = false; }
+}
+
+function saveLlmSettingsFromUi() {
+  if (!ENGINE_BRIDGE?.saveConfig) return;
+  const saved = ENGINE_BRIDGE.saveConfig(collectLlmSettingsForm());
+  setLlmSettingsStatus(saved.enabled ? '設定已儲存；API Key 只保留在目前頁面記憶體。' : 'LLM 已停用；將使用本機規則備援。', saved.enabled ? 'ready' : 'warning');
+  const status = $('engineStatus');
+  if (status) status.textContent = saved.enabled ? 'Qwen3.5-0.8B｜等待連線' : '本機規則備援';
+}
+
 function initializeRewriteBridge() {
   const status = $('engineStatus');
   if (!ENGINE_BRIDGE) {
-    if (status) status.textContent = '本機混合語言模型';
+    if (status) status.textContent = '本機規則備援';
     return;
   }
   ENGINE_BRIDGE.initialize({
     onStatus(info) {
-      if (!status) return;
-      status.textContent = info.detail || info.state || '本機混合語言模型';
-      status.classList.toggle('engine-ready', info.state === 'ready');
+      if (status) {
+        status.textContent = info.detail || info.state || 'Qwen3.5-0.8B';
+        status.classList.toggle('engine-ready', info.state === 'ready');
+      }
+      setLlmSettingsStatus(info.detail || info.state || '', info.state || '');
+      if (info.models) populateLlmModelSelect(info.models, info.model || ENGINE_BRIDGE.loadConfig?.().model || '');
     }
   }).catch(() => {
-    if (status) status.textContent = '本機混合語言模型';
+    if (status) status.textContent = 'Qwen3.5-0.8B／本機規則備援';
   });
 }
 
@@ -4684,6 +4829,12 @@ function bindEvents() {
   $('privacyDialog').addEventListener('click', event => {
     if (event.target === $('privacyDialog')) $('privacyDialog').close();
   });
+  $('showLlmSettingsButton')?.addEventListener('click', () => { initializeLlmSettingsUi(); $('llmSettingsDialog')?.showModal(); });
+  $('closeLlmSettingsButton')?.addEventListener('click', () => $('llmSettingsDialog')?.close());
+  $('llmSettingsDialog')?.addEventListener('click', event => { if (event.target === $('llmSettingsDialog')) $('llmSettingsDialog').close(); });
+  $('refreshLlmModelsButton')?.addEventListener('click', () => refreshLlmModels({ test:false }));
+  $('testLlmButton')?.addEventListener('click', () => refreshLlmModels({ test:true }));
+  $('saveLlmSettingsButton')?.addEventListener('click', saveLlmSettingsFromUi);
 
   $('feedbackSelectionButton')?.addEventListener('click', bringSelectedSourceToFeedback);
   $('feedbackRiskButton')?.addEventListener('click', () => handleFeedbackVote('risk'));
@@ -4730,7 +4881,7 @@ function bindEvents() {
 
 function renderCorpusStats() {
   const transition = REWRITE_ENGINE.transitionModel || {};
-  const text = `${PHRASE_ENTRIES.length} 筆高風險詞彙（含 ${Number(CORPUS.generatedPhraseCount || 0)} 筆生成變體）＋${EXPERT_ENTRIES.length} 筆完整案例＋${PATTERN_ENTRIES.length} 組語句結構＋${CONTEXT_ENTRIES.length} 組工作內容規則；安全生成庫另含 ${Number(SAFE_MESSAGE_CORPUS.scenarioCount || 0)} 種情境與 ${Number(SAFE_MESSAGE_CORPUS.exampleCount || 0)} 筆三風格例句；接龍模型使用 ${Number(transition.safeBigrams || 0)} 組安全二連詞與 ${Number(transition.safeTrigrams || 0)} 組安全三連詞`;
+  const text = `${PHRASE_ENTRIES.length} 筆高風險詞彙（含 ${Number(CORPUS.generatedPhraseCount || 0)} 筆生成變體）＋${EXPERT_ENTRIES.length} 筆完整案例＋${PATTERN_ENTRIES.length} 組語句結構＋${CONTEXT_ENTRIES.length} 組工作內容規則；安全生成庫另含 ${Number(SAFE_MESSAGE_CORPUS.scenarioCount || 0)} 種情境與 ${Number(SAFE_MESSAGE_CORPUS.exampleCount || 0)} 筆三風格例句；本機規則備援含 ${Number(transition.safeBigrams || 0)} 組安全二連詞與 ${Number(transition.safeTrigrams || 0)} 組安全三連詞`;
   if ($('corpusStats')) $('corpusStats').textContent = text;
   if ($('corpusVersion')) $('corpusVersion').textContent = CORPUS.version;
   if ($('privacyCorpusStats')) $('privacyCorpusStats').textContent = text;

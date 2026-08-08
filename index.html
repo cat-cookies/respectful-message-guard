@@ -4,9 +4,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<meta content="職場與服務溝通風險檢核器。以完全離線的情境語料、詞彙轉移權重與內嵌小型神經語言模型，抽取工作意圖、移除羞辱與情緒施壓，再重新生成自然繁體中文工作訊息。" name="description"/>
+<meta content="職場與服務溝通風險檢核器。以本機風險語料與 Qwen3.5-0.8B-GGUF（OpenAI-compatible 本機 LLM）抽取工作意圖、移除羞辱與情緒施壓，再重新生成自然繁體中文工作訊息。" name="description"/>
 <meta content="no-referrer" name="referrer"/>
-<meta content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'" http-equiv="Content-Security-Policy"/>
+<meta content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:*; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'" http-equiv="Content-Security-Policy"/>
 <meta content="light dark" name="color-scheme"/>
 <title>訊息溝通風險檢核器</title>
 <link href="styles.css" rel="stylesheet"/>
@@ -25,7 +25,7 @@
 <p class="lead">這是一個送出前的工作訊息輔助工具，不是法律判定器。原始訊息可以同時包含正常工作要求、情緒、辱罵或騷擾內容；系統會先抽出工作重點，再把需要調整的片段另外說明，不會因命中一個詞就把整段話判成有問題。</p>
 </div>
 <div aria-label="隱私設計" class="privacy-badges">
-<span>本機處理</span><span>零文字上傳</span><span>無追蹤</span><span>原始訊息不留存</span>
+<span>本機處理</span><span>Qwen 本機 LLM</span><span>無追蹤</span><span>網站不留存原文</span>
 </div>
 </header>
 <details class="source-details intro-law-details">
@@ -127,7 +127,7 @@
 </div>
 </section>
 <div class="app-shell" id="appShell">
-<header class="site-header"><div><p class="eyebrow">本機處理</p><h1>把難說的工作訊息，改成能直接傳的版本</h1><p>貼上原話，直接產生。需要時再查看或修正系統抓到的工作重點。</p></div><div class="header-actions compact-header-actions"><button class="ghost-button" id="showIntroButton" type="button">使用說明</button><button class="ghost-button" id="showPrivacyButton" type="button">隱私／技術</button><details class="tech-status-details"><summary>技術狀態</summary><div class="tech-status-body"><span class="corpus-chip">引擎：<strong id="engineStatus">偵測中</strong></span><span class="corpus-chip">語料：<strong id="corpusStats">載入中</strong></span></div></details></div></header>
+<header class="site-header"><div><p class="eyebrow">本機處理</p><h1>把難說的工作訊息，改成能直接傳的版本</h1><p>貼上原話，直接產生。需要時再查看或修正系統抓到的工作重點。</p></div><div class="header-actions compact-header-actions"><button class="ghost-button" id="showIntroButton" type="button">使用說明</button><button class="ghost-button llm-settings-button" id="showLlmSettingsButton" type="button">LLM 設定</button><button class="ghost-button" id="showPrivacyButton" type="button">隱私／技術</button><details class="tech-status-details"><summary>技術狀態</summary><div class="tech-status-body"><span class="corpus-chip">引擎：<strong id="engineStatus">偵測中</strong></span><span class="corpus-chip">語料：<strong id="corpusStats">載入中</strong></span></div></details></div></header>
 <main class="main-layout" id="mainContent">
 <section aria-labelledby="inputTitle" class="panel input-panel">
 <div class="panel-heading">
@@ -411,38 +411,55 @@
 </section>
 <footer class="site-footer">
 <p>本工具協助整理工作訊息與提示風險，不代替法律判斷或正式調查。</p>
-<p>版本 2.2.0｜語料庫 <span id="corpusVersion">載入中</span>｜本機離線文字處理</p>
+<p>版本 2.3.0｜語料庫 <span id="corpusVersion">載入中</span>｜Qwen3.5 本機 LLM＋離線安全護欄</p>
 </footer>
 </div>
+<dialog aria-labelledby="llmSettingsTitle" class="privacy-dialog llm-settings-dialog" id="llmSettingsDialog">
+<div class="dialog-head">
+<div><h2 id="llmSettingsTitle">Qwen3.5-0.8B 本機 LLM</h2><p class="dialog-subtitle">支援 LM Studio、llama.cpp server 與其他 OpenAI-compatible 介面。</p></div>
+<button aria-label="關閉" class="icon-button" id="closeLlmSettingsButton" type="button">×</button>
+</div>
+<div class="dialog-body llm-settings-body">
+<label class="check-row llm-enabled-row"><input id="llmEnabled" type="checkbox" checked/><span><strong>使用 Qwen3.5-0.8B-GGUF</strong><small>停用時改用本機規則備援。</small></span></label>
+<div class="llm-grid">
+<label><span>OpenAI-compatible Base URL</span><input id="llmBaseUrl" type="text" value="http://127.0.0.1:1234/v1" spellcheck="false"/></label>
+<label><span>處理模式</span><select id="llmMode"><option value="extract-rewrite" selected>工作意圖抽取＋潤稿</option><option value="rewrite">只用 LLM 潤稿</option><option value="extract">只用 LLM 抽取</option></select></label>
+<label class="llm-model-field"><span>模型</span><div class="inline-input-with-button"><select id="llmModelSelect"><option value="">自動偵測 Qwen3.5-0.8B</option></select><button class="secondary-button" id="refreshLlmModelsButton" type="button">重新讀取</button></div></label>
+<label><span>API Key（LM Studio 預設可留空）</span><input id="llmApiKey" type="password" autocomplete="off" placeholder="選填"/></label>
+</div>
+<label class="check-row"><input id="llmStrictQwen" type="checkbox" checked/><span>只允許 Qwen3.5-0.8B；若 LM Studio 載入其他模型則不使用</span></label>
+<div class="llm-actions"><button class="primary-button" id="testLlmButton" type="button">測試連線</button><button class="secondary-button" id="saveLlmSettingsButton" type="button">儲存設定</button><span class="llm-status" id="llmSettingsStatus" role="status">尚未測試</span></div>
+<div class="llm-help"><strong>LM Studio：</strong>先載入 <code>Qwen3.5-0.8B-GGUF</code>，再到 Developer 啟動 Local Server。預設連線埠為 1234。網站會先讀取 <code>/v1/models</code>，再使用 <code>/v1/chat/completions</code>。</div>
+</div>
+</dialog>
 <dialog aria-labelledby="privacyTitle" class="privacy-dialog" id="privacyDialog">
 <div class="dialog-head">
 <h2 id="privacyTitle">隱私、資訊安全與低耗能設計</h2>
 <button aria-label="關閉" class="icon-button" id="closePrivacyButton" type="button">×</button>
 </div>
 <div class="dialog-body">
-<h3>文字仍在本機處理</h3>
-<p>網站沒有帳號、伺服器資料庫、雲端文字模型、分析追蹤或廣告程式。高風險語料、安全生成語料、轉移權重所需資料與小型領域神經語言模型都直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>。輸入文字與潤稿候選不會送到第三方文字 API。</p>
+<h3>Qwen3.5 透過本機 LLM 介面運作</h3>
+<p>網站本身沒有帳號、雲端資料庫、分析追蹤或廣告程式。高風險語料與安全生成語料仍隨網站部署，目前包含 <strong id="privacyCorpusStats">載入中</strong>。潤稿可透過 LM Studio、llama.cpp server 或其他 OpenAI-compatible 本機端點呼叫 Qwen3.5-0.8B-GGUF。預設端點是 <code>http://127.0.0.1:1234/v1</code>；若使用本機啟動器，請求會經同機 proxy 轉送，原始訊息不會送往本站作者或第三方雲端。</p>
 <h3>工作內容也會被檢核</h3>
 <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
 <h3>單一路徑：直接產生，抽取修正是選用</h3>
 <p>原始訊息是唯一來源。系統先自動抽取工作主題、事實、行動、期限與原因，使用者可直接產生；只有抽取不準時才打開編輯區修正。修正後再用同一個生成流程更新結果。原始訊息始終保留做完整風險掃描。</p>
-<h3>潤稿不是固定模板拼接</h3>
-<p>系統會依工作情境、對象、溝通強度與風格建立多條候選接龍路徑，再同時使用安全語料轉移機率、霸凌語料反向權重、詞彙政策與內嵌神經語言模型評估流暢度。只有通過風險與工作合理性檢核的高分候選才進入加權抽選，因此不是把欄位照順序硬接起來，也不會為了隨機而抽到低品質句子。</p>
+<h3>潤稿由 Qwen3.5 生成，規則層負責把關</h3>
+<p>原始訊息先由本機風險引擎完整掃描，再由 Qwen3.5-0.8B 協助整理工作意圖與重新生成三種版本。LLM 不直接決定法律風險；輸出仍須通過離線霸凌／騷擾語料、工作合理性、原句複製與個資防漏。若 LLM 未連線，才自動退回原本的情境／接龍規則備援。</p>
 <h3>資料最小化</h3>
 <p>原始訊息與潤稿結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有你主動送出的「本機回饋詞／短片段與不OK／誤判次數」會存入 localStorage，用來計算這台瀏覽器的自訂權重；完整原始訊息不會因回饋功能被保存。另只有「本分頁是否略過法制說明」使用 sessionStorage。</p>
-<h3>網路使用範圍</h3>
-<p>文字處理所需的 JavaScript、兩個正式語料庫與模型權重全部隨 ZIP／GitHub Pages 一起部署，不會在執行時向 CDN 或模型網站下載檔案。本機啟動程式只建立 127.0.0.1 靜態網站，文字判斷仍在瀏覽器內完成。法律來源連結只有在使用者自行點擊時才會離開本站。</p>
+<h3>LLM 連線範圍</h3>
+<p>兩個風險／安全語料庫仍完全隨 ZIP 部署。Qwen3.5 GGUF 不放進此 ZIP，而是由你在 LM Studio 或其他本機推論程式載入；網站只連到你設定的 OpenAI-compatible 端點。本機啟動器預設只代理 loopback 位址（127.0.0.1／localhost），避免被拿來轉送任意外部網址。法律來源連結只有在使用者自行點擊時才會離開本站。</p>
 <h3>語音輸入另有瀏覽器層級限制</h3>
 <p>語音按鈕使用瀏覽器 Web Speech API 的繁體中文辨識，不使用會造成 phrases-not-supported 的實驗性詞組偏置。若瀏覽器已安裝 zh-TW 裝置端語音模型，本站會優先啟用 processLocally 在裝置端辨識；否則才退回瀏覽器既有語音服務。本站會在瀏覽器自動結束一段辨識時重新啟動，直到你按「停止語音」，辨識候選再由本機工作詞彙重新排序。部分瀏覽器的備援語音服務可能需要網路；本站不保存音訊，也不把辨識文字送到雲端文字模型。</p>
-<h3>低耗能</h3>
-<p>內建的是小型工作溝通領域 GRU 模型，而不是數百 MB 的通用大型語言模型；另搭配安全／風險語料轉移權重。模型只在產生候選時短暫做本機排序，不進行伺服器推論或背景持續運算。</p>
+<h3>模型資源</h3>
+<p>本版已移除舊的內嵌 GRU。Qwen3.5-0.8B-GGUF 的實際記憶體與速度取決於你在 LM Studio／llama.cpp 選擇的量化版本與硬體；網站端不另外下載模型。</p>
 <h3>仍須注意</h3>
 <p>若使用共用電腦、瀏覽器外掛、剪貼簿同步或作業系統雲端剪貼簿，仍可能產生額外風險。貼入前宜先自行刪除非必要姓名、地址、病歷與聯絡資料。</p>
 </div>
 </dialog>
 <script defer="" src="bullying-corpus.js"></script>
 <script defer="" src="safe-message-corpus.js"></script>
-<script defer="" src="model/local-domain-lm.js"></script>
 <script defer="" src="app.js"></script>
 </body>
 </html>
