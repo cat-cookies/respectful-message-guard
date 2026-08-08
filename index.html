@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="職場與服務溝通風險檢核器。以完全離線的情境語料、詞彙轉移權重與內嵌小型神經語言模型，抽取工作意圖、移除羞辱與情緒施壓，再重新生成自然繁體中文工作訊息。">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'">
   <meta name="color-scheme" content="light dark">
   <title>訊息溝通風險檢核器</title>
   <link rel="stylesheet" href="styles.css">
@@ -21,14 +21,17 @@
     <div class="intro-shell">
       <header class="intro-header">
         <div>
-          <p class="eyebrow">使用前法制說明</p>
-          <h1 id="introTitle">中華民國的跟蹤、騷擾與霸凌，不是同一套法律</h1>
-          <p class="lead">同一句不當訊息，可能依發生場域、雙方身分、權勢關係、是否持續，以及是否與性或性別有關，而分別適用不同制度。請先閱讀，再進入文字檢核功能。</p>
+          <p class="eyebrow">使用方式與界線</p>
+          <h1 id="introTitle">先把「真正工作內容」和「不適合傳出去的說法」分開</h1>
+          <p class="lead">這是一個送出前的工作訊息輔助工具，不是法律判定器。原始訊息可以同時包含正常工作要求、情緒、辱罵或騷擾內容；系統會先抽出工作重點，再把需要調整的片段另外說明，不會因命中一個詞就把整段話判成有問題。</p>
         </div>
         <div class="privacy-badges" aria-label="隱私設計">
-          <span>本機處理</span><span>零文字上傳</span><span>無追蹤</span><span>不留存內容</span>
+          <span>本機處理</span><span>零文字上傳</span><span>無追蹤</span><span>原始訊息不留存</span>
         </div>
       </header>
+
+      <details class="source-details intro-law-details">
+        <summary>需要時查看法律分流與適用情境</summary>
 
       <section class="intro-notice" aria-labelledby="routeTitle">
         <h2 id="routeTitle">先看關係與場域，再看行為本身</h2>
@@ -89,6 +92,7 @@
           <p class="law-path">主要法源：校園霸凌防制準則、性別平等教育法。</p>
         </article>
       </div>
+      </details>
 
       <section class="intro-notice" aria-labelledby="noticeTitle">
         <h2 id="noticeTitle">這個網站能做什麼，以及不能做什麼</h2>
@@ -128,9 +132,9 @@
       <div class="intro-consent">
         <label class="check-row" for="hideIntroSession">
           <input id="hideIntroSession" type="checkbox">
-          <span>我已閱讀；在這個分頁關閉前，不再顯示本說明</span>
+          <span>這個分頁關閉前，不再顯示使用說明</span>
         </label>
-        <button id="enterAppButton" class="primary-button" type="button">確認並進入功能頁</button>
+        <button id="enterAppButton" class="primary-button" type="button">開始使用</button>
       </div>
     </div>
   </section>
@@ -154,9 +158,9 @@
       <section class="panel input-panel" aria-labelledby="inputTitle">
         <div class="panel-heading">
           <div>
-            <p class="step-label">步驟一｜風險檢核＋工作意圖抽取</p>
+            <p class="step-label">步驟一｜原始訊息 → 自動拆解工作內容</p>
             <h2 id="inputTitle">貼上原始訊息</h2>
-            <p class="field-help strong-help">系統會從原始訊息抽取「工作主題、客觀事實、要求行動、期限、原因／影響」，並在有明確稱呼時辨識「對象線索」；<strong>辱罵、羞辱、威脅與情緒施壓只作為風險訊號，不會直接成為輸出句子。</strong></p>
+            <p class="field-help strong-help">系統會先把同一段原始訊息拆成兩條資料流：一條找出「工作主題、客觀事實、要求行動、期限、原因／影響」，另一條保留需要檢視的羞辱、威脅、性化、騷擾或情緒施壓訊號。<strong>下一區就是這裡抽出的工作內容，可直接人工修正；不是另一套互不相干的輸入。</strong></p>
           </div>
           <button id="loadExampleButton" class="text-button" type="button">載入示例</button>
         </div>
@@ -197,20 +201,39 @@
           <span>文字潤稿、風險檢核、語料庫與模型權重都隨網站一起部署；文字生成不需 API，也不需下載外部模型。</span>
         </div>
         <p id="voiceStatus" class="voice-status" role="status">語音輸入會持續聆聽，只有按「停止語音」才結束；若瀏覽器自行切段，本站會自動續聽。辨識候選會再以本機工作語料重新排序。瀏覽器的語音服務是否完全離線仍取決於瀏覽器本身；文字潤稿模型則完全內建。</p>
+
+        <section id="liveExtractionBox" class="live-extraction-box" aria-labelledby="liveExtractionTitle">
+          <div class="live-extraction-head">
+            <div>
+              <strong id="liveExtractionTitle">原始訊息 → 工作內容</strong>
+              <span id="liveExtractionConfidence" class="live-confidence neutral">等待輸入</span>
+            </div>
+            <button id="jumpToStructuredButton" class="text-button" type="button">查看／修正抽取結果</button>
+          </div>
+          <div id="liveExtractionSummary" class="live-extraction-summary">輸入原始訊息後，系統會自動把可用工作內容同步到下一區。</div>
+          <p class="field-note">同一段話可以同時包含正常工作要求與霸凌／騷擾內容。系統會保留前者作為工作意圖，後者只進入風險檢核；不會因為有高風險片段就把整段工作的實質內容一起丟掉。</p>
+        </section>
+
         <p id="pasteNotice" class="paste-notice" role="status" hidden>偵測到剪貼簿內含圖片或貼圖。本網站不會讀取、上傳或保存圖片；分析時會將「使用貼圖」列為溝通風險提醒。</p>
         <section class="substance-box" aria-labelledby="substanceTitle">
           <div class="substance-heading">
             <div>
-              <p class="step-label">步驟二｜確認自動抽取結果</p>
+              <p class="step-label">步驟一延伸｜確認／修正自動抽取結果</p>
               <h3 id="substanceTitle">真正要傳達的工作內容</h3>
             </div>
             <span class="source-lock-badge">先抽取，再重寫</span>
           </div>
-          <p class="field-help"><strong>預設會先從原始訊息自動填入空白欄位；你可以再修正。</strong>人工填入的欄位也不是直接照抄；系統會先去除羞辱、責罵與含糊命令，轉成較客觀、可執行的內容，再檢查「工作要求本身」是否合理。涉及陪酒／私人差事、強制社交、休假或下班後持續待命、明顯不合理目標、性別化要求、不實紀錄或安全程序規避時，會直接提示或阻止產生可複製版本。</p>
-          <label class="check-row extraction-option" for="autoExtractOption">
-            <input id="autoExtractOption" type="checkbox" checked>
-            <span>自動從原始訊息抽取工作意圖，僅補入目前空白欄位</span>
-          </label>
+          <p class="field-help"><strong>這些欄位就是步驟一的自動抽取結果。</strong>原始訊息一變更，尚未人工修改的欄位會跟著更新；你手動修正過的欄位會保留，不會被下一次語音或重新抽取偷偷蓋掉。人工內容仍會經過去責罵化、事實化與工作合理性檢核。</p>
+          <div class="extraction-sync-row">
+            <label class="check-row extraction-option" for="autoExtractOption">
+              <input id="autoExtractOption" type="checkbox" checked>
+              <span>原始訊息變更時，自動同步尚未人工修改的欄位</span>
+            </label>
+            <div class="button-row compact extraction-actions">
+              <button id="reextractButton" class="secondary-button" type="button">重新抽取（保留人工修正）</button>
+              <button id="resetAutoExtractionButton" class="secondary-button" type="button">全部改回自動抽取</button>
+            </div>
+          </div>
           <p id="extractionStatus" class="extraction-status" role="status">尚未抽取。</p>
 
           <p class="smart-field-help">不知道怎麼寫時，可以先從「常用選項」挑最接近的內容，再自行修改；每個欄位也可直接用語音輸入。選項會依工作主題動態更新，不必硬套模板。</p>
@@ -224,6 +247,7 @@
               <option value="">常用選項：先選工作主題</option>
             </select>
             <input id="topicText" type="text" maxlength="160" placeholder="例如：排班、報告修正、工作進度；也可自行輸入其他主題">
+            <div class="field-provenance"><span id="topicOriginBadge" class="field-origin-badge neutral">尚未抽取</span><span id="topicEvidence" class="extraction-evidence"></span><button class="field-reset-auto" type="button" data-reset-auto="topic">恢復自動</button></div>
           </div>
 
           <div class="textarea-label smart-field">
@@ -235,6 +259,7 @@
               <option value="">常用選項：依工作主題提供目前狀況</option>
             </select>
             <textarea id="factText" rows="4" maxlength="1600" placeholder="例如：目前收到的檔案仍缺少附件二，且版本日期與會議確認內容不一致。"></textarea>
+            <div class="field-provenance"><span id="factOriginBadge" class="field-origin-badge neutral">尚未抽取</span><span id="factEvidence" class="extraction-evidence"></span><button class="field-reset-auto" type="button" data-reset-auto="fact">恢復自動</button></div>
           </div>
 
           <div class="textarea-label smart-field">
@@ -246,6 +271,7 @@
               <option value="">常用選項：依工作主題提供下一步</option>
             </select>
             <textarea id="actionText" rows="3" maxlength="1000" placeholder="例如：重新確認附件二並上傳正確版本。"></textarea>
+            <div class="field-provenance"><span id="actionOriginBadge" class="field-origin-badge neutral">尚未抽取</span><span id="actionEvidence" class="extraction-evidence"></span><button class="field-reset-auto" type="button" data-reset-auto="action">恢復自動</button></div>
           </div>
 
           <div class="field-grid substance-grid">
@@ -255,6 +281,7 @@
                 <input id="deadlineText" type="text" maxlength="240" placeholder="例如：今天下午 5 時前">
                 <button class="voice-input-button compact" type="button" data-voice-target="deadlineText" aria-label="用語音輸入期限">🎙</button>
               </div>
+              <div class="field-provenance compact-provenance"><span id="deadlineOriginBadge" class="field-origin-badge neutral">尚未抽取</span><span id="deadlineEvidence" class="extraction-evidence"></span><button class="field-reset-auto" type="button" data-reset-auto="deadline">恢復自動</button></div>
             </label>
             <label>
               <span>溝通強度</span>
@@ -283,6 +310,7 @@
               <option value="">常用選項：依工作主題提供原因或影響</option>
             </select>
             <textarea id="reasonText" rows="3" maxlength="1000" placeholder="例如：需於明日上午會議前完成彙整，避免後續使用錯誤版本。"></textarea>
+            <div class="field-provenance"><span id="reasonOriginBadge" class="field-origin-badge neutral">尚未抽取</span><span id="reasonEvidence" class="extraction-evidence"></span><button class="field-reset-auto" type="button" data-reset-auto="reason">恢復自動</button></div>
           </div>
 
           <div class="textarea-label smart-field">
@@ -291,6 +319,7 @@
               <button class="voice-input-button" type="button" data-voice-target="basisText" aria-label="用語音輸入工作必要性或職務依據">🎙 語音輸入</button>
             </div>
             <textarea id="basisText" rows="3" maxlength="1200" placeholder="例如：此為客戶專案既定會議；出席屬專案工作，但飲酒與續攤非必要且可拒絕。若為醫療／法律／教育／研究用語，請說明專業目的。"></textarea>
+            <div class="field-provenance"><span id="basisOriginBadge" class="field-origin-badge manual">人工補充欄</span><span class="extraction-evidence">原始訊息通常不會自動推定職務依據，避免替高風險要求自行找理由。</span></div>
             <small class="field-note">此欄預設只供工作合理性檢核，不會自動寫進對外訊息；也不能用來「洗白」不合理要求。</small>
           </div>
           <label class="check-row output-basis-option" for="includeBasisOption">
@@ -316,7 +345,7 @@
       <section id="resultPanel" class="panel result-panel" aria-labelledby="resultTitle" aria-live="polite">
         <div class="panel-heading">
           <div>
-            <p class="step-label">步驟三｜輸出</p>
+            <p class="step-label">步驟二｜產生可傳送版本</p>
             <h2 id="resultTitle">去除高風險語句後的工作訊息建議</h2>
             <p class="result-subtitle">通過工作合理性與風險檢核後，引擎會依抽取或人工修正後的工作內容重新生成句子。原始訊息只提供意圖抽取與風險判斷，不會直接複製成結果；三種版本可切換比較。</p>
           </div>
@@ -325,7 +354,7 @@
 
         <div id="emptyState" class="empty-state">
           <h3>尚未產生結果</h3>
-          <p>貼上原始訊息後可直接按「檢核並潤稿」。系統會先抽取工作意圖並補入空白欄位，再進行工作合理性與風險檢核，最後重新生成可直接傳送的版本。</p>
+          <p>貼上原始訊息後可直接按「檢核並產生可複製版本」。系統會先抽取工作意圖並補入空白欄位，再進行工作合理性與風險檢核，最後重新生成可直接傳送的版本。</p>
         </div>
 
         <div id="resultContent" hidden>
@@ -372,8 +401,24 @@
 
           <section aria-labelledby="reasonTitle">
             <div class="subheading">
-              <h3 id="reasonTitle">為何不宜這樣說</h3>
-              <p>每個命中項目都對應本機離線語料庫代碼、風險警示、較安全處理方式與法制提示；仍不是違法或成立霸凌的法律認定。</p>
+              <h3 id="reasonTitle">原始訊息有哪些地方需要調整</h3>
+              <p>先看「目前上下文怎麼判讀」，再決定是否需要修改。單一詞彙不是永遠有問題：專業術語、引用、教育或醫療情境可能合理；但若和權勢、威脅、性要求或羞辱連在一起，風險會明顯提高。法制與語料來源收在每張卡片內，需要時再展開。</p>
+            </div>
+            <div class="finding-toolbar">
+              <label>顯示
+                <select id="findingFilterSelect">
+                  <option value="all">全部問題／提醒</option>
+                  <option value="severe">較高風險</option>
+                  <option value="context">需看上下文</option>
+                  <option value="info">一般提醒</option>
+                </select>
+              </label>
+              <span id="findingResultCount" class="finding-result-count">0 項</span>
+              <div class="finding-page-controls">
+                <button id="findingPrevButton" class="secondary-button" type="button">上一頁</button>
+                <span id="findingPageLabel">第 1 / 1 頁</span>
+                <button id="findingNextButton" class="secondary-button" type="button">下一頁</button>
+              </div>
             </div>
             <div id="findingList" class="finding-list"></div>
           </section>
@@ -420,7 +465,7 @@
             <p>語料庫不是只列髒話。網站將來源分成「現行法規／官方指引與FAQ／司法實務／完整案例語料」，再形成四層判讀：高風險用語、語言學結構、完整案例相似語句、工作內容合理性規則。每個命中項目會顯示來源連結。判決只用來建立風險類型與上下文規則，不把個案裁判結果機械套用到新事件。</p>
           </details>
 
-          <details class="limitations" open>
+          <details class="limitations">
             <summary>判讀限制與使用界線</summary>
             <p>單一訊息通常不足以判斷職場霸凌、性騷擾或跟蹤騷擾是否成立。請保留完整對話、時間、對象、工作指示、回應、傳送頻率與其他背景；若已發生安全威脅、持續騷擾、報復或重大身心危害，應循組織申訴、主管機關、警察或專業法律協助處理。</p>
           </details>
@@ -429,12 +474,15 @@
     </main>
 
     <section class="legal-reference-section" aria-labelledby="legalRefTitle">
-      <div class="section-heading">
-        <p class="eyebrow">法規檢核範圍</p>
-        <h2 id="legalRefTitle">網站納入的主要法律風險</h2>
-        <p>並非每項法規都會同時適用；應依身分、場域與行為態樣分流。</p>
+      <div class="section-heading compact-legal-heading">
+        <p class="eyebrow">需要時再查</p>
+        <h2 id="legalRefTitle">法規與判讀依據</h2>
+        <p>潤稿時不需要先讀完整法規。只有要進一步理解某項風險、申訴或正式處理時，再展開查閱。</p>
       </div>
-      <div id="legalReferenceGrid" class="reference-grid"></div>
+      <details class="source-details app-law-details">
+        <summary>查看網站納入的主要法律風險與法規說明</summary>
+        <div id="legalReferenceGrid" class="reference-grid"></div>
+      </details>
       <details class="source-catalog-details">
         <summary>查看離線語料庫的法規、官方指引與判決來源（<span id="sourceCatalogCount">0</span>）</summary>
         <p class="source-catalog-note">來源採分層使用：現行法規與主管機關指引／FAQ作為主要規範依據；司法院判決說明與公開裁判資料用來補足具體行為態樣及上下文。網站不會在使用時連線查詢，這些連結只供使用者自行查證。</p>
@@ -444,7 +492,7 @@
 
     <footer class="site-footer">
       <p>本工具採離線語料庫、工作合理性規則與多層潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 2.0.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機混合語言模型：情境接龍＋安全／風險轉移權重＋內嵌領域 GRU 流暢度模型；無雲端文字 API。</p>
+      <p>版本 2.1.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機混合語言模型：情境接龍＋安全／風險轉移權重＋內嵌領域 GRU 流暢度模型；無雲端文字 API。</p>
     </footer>
   </div>
 
@@ -458,8 +506,8 @@
       <p>網站沒有帳號、伺服器資料庫、雲端文字模型、分析追蹤或廣告程式。高風險語料、安全生成語料、轉移權重所需資料與小型領域神經語言模型都直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>。輸入文字與潤稿候選不會送到第三方文字 API。</p>
       <h3>工作內容也會被檢核</h3>
       <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
-      <h3>原始訊息先抽取，不直接複製</h3>
-      <p>原始訊息會先被拆成工作主題、客觀事實、要求行動、期限與原因／影響；若句首有明確稱呼，也會辨識對象線索。辱罵、羞辱、性意味、威脅與情緒施壓只作為風險訊號並在抽取階段移除；輸出使用抽取後的結構化內容重新生成，另有「原句直接複製」相似度防護。</p>
+      <h3>步驟一與步驟二是同一條資料流</h3>
+      <p>原始訊息會先拆成工作主題、客觀事實、要求行動、期限與原因／影響，並立即同步到「確認／修正」欄位；使用者修改過的欄位會被標記為人工修正，後續自動抽取不會覆蓋。辱罵、羞辱、性意味、威脅與情緒施壓則留在風險層，不直接進入輸出。</p>
       <h3>潤稿不是固定模板拼接</h3>
       <p>系統會依工作情境、對象、溝通強度與風格建立多條候選接龍路徑，再同時使用安全語料轉移機率、霸凌語料反向權重、詞彙政策與內嵌神經語言模型評估流暢度。只有通過風險與工作合理性檢核的高分候選才進入加權抽選，因此不是把欄位照順序硬接起來，也不會為了隨機而抽到低品質句子。</p>
       <h3>資料最小化</h3>
