@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="職場與服務溝通風險檢核器。可從原始訊息抽取真正工作意圖、移除羞辱與情緒施壓、補成可執行內容，再以本機 Python／瀏覽器 Python／離線 JavaScript 分層引擎重新生成繁體中文訊息。">
+  <meta name="description" content="職場與服務溝通風險檢核器。以完全離線的情境語料、詞彙轉移權重與內嵌小型神經語言模型，抽取工作意圖、移除羞辱與情緒施壓，再重新生成自然繁體中文工作訊息。">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
   <meta name="color-scheme" content="light dark">
   <title>訊息溝通風險檢核器</title>
   <link rel="stylesheet" href="styles.css">
@@ -194,9 +194,9 @@
         </div>
         <div class="textarea-meta">
           <span id="charCount">0 / 8000</span>
-          <span>文字內容只在本機處理。若啟用瀏覽器 Python，只會從 CDN 下載 Python 執行環境，不會把你的訊息送到 CDN。</span>
+          <span>文字潤稿、風險檢核、語料庫與模型權重都隨網站一起部署；文字生成不需 API，也不需下載外部模型。</span>
         </div>
-        <p id="voiceStatus" class="voice-status" role="status">語音輸入採用瀏覽器相容性較高的基本語音辨識，不使用實驗性的詞組偏置功能。辨識結果會再以本機工作語料重新排序與修正；瀏覽器本身可能使用線上語音服務，文字潤稿則不會送到雲端文字模型。</p>
+        <p id="voiceStatus" class="voice-status" role="status">語音輸入會持續聆聽，只有按「停止語音」才結束；若瀏覽器自行切段，本站會自動續聽。辨識候選會再以本機工作語料重新排序。瀏覽器的語音服務是否完全離線仍取決於瀏覽器本身；文字潤稿模型則完全內建。</p>
         <p id="pasteNotice" class="paste-notice" role="status" hidden>偵測到剪貼簿內含圖片或貼圖。本網站不會讀取、上傳或保存圖片；分析時會將「使用貼圖」列為溝通風險提醒。</p>
         <section class="substance-box" aria-labelledby="substanceTitle">
           <div class="substance-heading">
@@ -378,6 +378,43 @@
             <div id="findingList" class="finding-list"></div>
           </section>
 
+          <section class="feedback-learning-box" aria-labelledby="feedbackLearningTitle">
+            <div class="subheading">
+              <h3 id="feedbackLearningTitle">本機回饋學習</h3>
+              <p>看到漏接的羞辱、威脅、情緒施壓或不自然用語時，可把短詞／片段標成「不OK」；若系統誤判，也可標成「誤判」。回饋只存在這台瀏覽器，至少累積兩次且不妥比例足夠高才會形成自訂風險權重，不會用一次點擊覆蓋正式語料庫。</p>
+            </div>
+            <div class="feedback-entry-grid">
+              <label>
+                <span>要回報的詞或短片段</span>
+                <input id="feedbackTermInput" type="text" maxlength="120" placeholder="例如：不想做就滾、這點事都不會">
+              </label>
+              <label>
+                <span>類型</span>
+                <select id="feedbackCategorySelect">
+                  <option value="羞辱／人格貶低">羞辱／人格貶低</option>
+                  <option value="威脅／逼退">威脅／逼退</option>
+                  <option value="情緒施壓／勒索">情緒施壓／勒索</option>
+                  <option value="反諷／嘲弄">反諷／嘲弄</option>
+                  <option value="不合理工作要求">不合理工作要求</option>
+                  <option value="歧視／性化">歧視／性化</option>
+                  <option value="不自然／機械用語">不自然／機械用語</option>
+                  <option value="其他">其他</option>
+                </select>
+              </label>
+            </div>
+            <div class="button-row compact feedback-buttons">
+              <button id="feedbackSelectionButton" class="secondary-button" type="button">帶入原始訊息選取文字</button>
+              <button id="feedbackRiskButton" class="primary-button" type="button">記為不OK</button>
+              <button id="feedbackFalsePositiveButton" class="secondary-button" type="button">記為誤判</button>
+              <button id="exportFeedbackButton" class="secondary-button" type="button">匯出回報統計</button>
+              <button id="importFeedbackButton" class="secondary-button" type="button">匯入／合併統計</button>
+              <input id="feedbackImportFile" type="file" accept="application/json,.json" hidden>
+            </div>
+            <p id="feedbackStatus" class="copy-status" role="status"></p>
+            <div id="feedbackStats" class="feedback-stats"></div>
+            <p class="field-note">純靜態網站沒有中央伺服器，因此不會自動蒐集其他人的回報。若要多人共同累積，可把 JSON 統計檔交給維護者合併後再匯入；匯出的只有回報片段與次數，不含整段原始訊息。</p>
+          </section>
+
           <details class="limitations source-method">
             <summary>離線語料庫如何建立</summary>
             <p>語料庫不是只列髒話。網站將來源分成「現行法規／官方指引與FAQ／司法實務／完整案例語料」，再形成四層判讀：高風險用語、語言學結構、完整案例相似語句、工作內容合理性規則。每個命中項目會顯示來源連結。判決只用來建立風險類型與上下文規則，不把個案裁判結果機械套用到新事件。</p>
@@ -407,7 +444,7 @@
 
     <footer class="site-footer">
       <p>本工具採離線語料庫、工作合理性規則與多層潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 1.10.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機 Python 優先、瀏覽器 Python 可用、離線 JavaScript 保底；無雲端文字 API、無分析追蹤、無 Cookie。</p>
+      <p>版本 2.0.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機混合語言模型：情境接龍＋安全／風險轉移權重＋內嵌領域 GRU 流暢度模型；無雲端文字 API。</p>
     </footer>
   </div>
 
@@ -418,21 +455,21 @@
     </div>
     <div class="dialog-body">
       <h3>文字仍在本機處理</h3>
-      <p>網站沒有帳號、伺服器資料庫、雲端文字模型、分析追蹤或廣告程式。高風險資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；若瀏覽器 Python 可用，頁面只會向固定 CDN 下載 Pyodide 執行環境，輸入文字仍在你的瀏覽器內執行，不會送到第三方文字 API。</p>
+      <p>網站沒有帳號、伺服器資料庫、雲端文字模型、分析追蹤或廣告程式。高風險語料、安全生成語料、轉移權重所需資料與小型領域神經語言模型都直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>。輸入文字與潤稿候選不會送到第三方文字 API。</p>
       <h3>工作內容也會被檢核</h3>
       <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
       <h3>原始訊息先抽取，不直接複製</h3>
       <p>原始訊息會先被拆成工作主題、客觀事實、要求行動、期限與原因／影響；若句首有明確稱呼，也會辨識對象線索。辱罵、羞辱、性意味、威脅與情緒施壓只作為風險訊號並在抽取階段移除；輸出使用抽取後的結構化內容重新生成，另有「原句直接複製」相似度防護。</p>
       <h3>潤稿不是固定模板拼接</h3>
-      <p>系統會依溝通目的、對象、強度與文字風格產生多個候選句，先排除不通順、高風險與內容缺漏版本，再依品質分數做加權抽選。常用、完整、分數較高的說法被選到的機率較高，但不會每次都固定輸出同一句。職務依據預設只供安全判讀，不會自動塞進訊息。</p>
+      <p>系統會依工作情境、對象、溝通強度與風格建立多條候選接龍路徑，再同時使用安全語料轉移機率、霸凌語料反向權重、詞彙政策與內嵌神經語言模型評估流暢度。只有通過風險與工作合理性檢核的高分候選才進入加權抽選，因此不是把欄位照順序硬接起來，也不會為了隨機而抽到低品質句子。</p>
       <h3>資料最小化</h3>
-      <p>原始文字與結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有「本分頁是否略過法制說明」會以 sessionStorage 記錄；關閉分頁後即失效。</p>
+      <p>原始訊息與潤稿結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有你主動送出的「本機回饋詞／短片段與不OK／誤判次數」會存入 localStorage，用來計算這台瀏覽器的自訂權重；完整原始訊息不會因回饋功能被保存。另只有「本分頁是否略過法制說明」使用 sessionStorage。</p>
       <h3>網路使用範圍</h3>
-      <p>GitHub Pages 線上使用時，頁面可向 jsDelivr 下載固定版本的 Pyodide 執行環境；不會把輸入文字加入網址、請求內容或送至第三方 API。本機啟動版只呼叫 127.0.0.1 的 Python 服務；若 Python 不可用，核心功能會退回隨網站一起部署的 JavaScript 引擎。</p>
+      <p>文字處理所需的 JavaScript、兩個正式語料庫與模型權重全部隨 ZIP／GitHub Pages 一起部署，不會在執行時向 CDN 或模型網站下載檔案。本機啟動程式只建立 127.0.0.1 靜態網站，文字判斷仍在瀏覽器內完成。法律來源連結只有在使用者自行點擊時才會離開本站。</p>
       <h3>語音輸入另有瀏覽器層級限制</h3>
-      <p>語音按鈕使用瀏覽器的 Web Speech API，採相容性較高的基本繁體中文辨識，不啟用實驗性的詞組偏置或裝置端語言套件 API。瀏覽器供應商仍可能使用線上語音服務處理音訊；本站不保存音訊，也不把辨識後文字送到雲端文字模型。若瀏覽器語音服務不可用，可直接使用 Windows 的 Win + H 系統聽寫。</p>
+      <p>語音按鈕使用瀏覽器 Web Speech API 的繁體中文辨識，不使用會造成 phrases-not-supported 的實驗性詞組偏置。若瀏覽器已安裝 zh-TW 裝置端語音模型，本站會優先啟用 processLocally 在裝置端辨識；否則才退回瀏覽器既有語音服務。本站會在瀏覽器自動結束一段辨識時重新啟動，直到你按「停止語音」，辨識候選再由本機工作詞彙重新排序。部分瀏覽器的備援語音服務可能需要網路；本站不保存音訊，也不把辨識文字送到雲端文字模型。</p>
       <h3>低耗能</h3>
-      <p>使用小型規則引擎，不下載大型模型、不進行伺服器推論，也不持續背景運算。分析只在按下按鈕時執行。</p>
+      <p>內建的是小型工作溝通領域 GRU 模型，而不是數百 MB 的通用大型語言模型；另搭配安全／風險語料轉移權重。模型只在產生候選時短暫做本機排序，不進行伺服器推論或背景持續運算。</p>
       <h3>仍須注意</h3>
       <p>若使用共用電腦、瀏覽器外掛、剪貼簿同步或作業系統雲端剪貼簿，仍可能產生額外風險。貼入前宜先自行刪除非必要姓名、地址、病歷與聯絡資料。</p>
     </div>
@@ -440,6 +477,7 @@
 
   <script src="bullying-corpus.js" defer></script>
   <script src="safe-message-corpus.js" defer></script>
+  <script src="model/local-domain-lm.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

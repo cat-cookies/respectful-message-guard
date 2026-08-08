@@ -12,8 +12,8 @@ if %errorlevel%==0 (
   goto :eof
 )
 echo.
-echo [無法啟動本機 Python 引擎]
-echo 這台電腦找不到 Python。你仍可直接開啟 index.html 使用離線 JavaScript 引擎，
-echo 或將整個資料夾放到 GitHub Pages；線上時會嘗試在瀏覽器內載入 Python 執行環境。
+echo [找不到 Python]
+echo 仍可直接開啟 index.html 使用完整的本機混合語言模型。
+echo 若瀏覽器限制麥克風或其他功能，建議安裝 Python 後再執行 start-local.bat。
 echo.
 pause

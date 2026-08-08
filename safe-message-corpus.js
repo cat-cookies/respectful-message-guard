@@ -5,11 +5,11 @@
   if (root) root.SAFE_MESSAGE_CORPUS_DATA = data;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function buildSafeCorpus() {
   const data = /*__JSON_START__*/{
-  "version": "2026.08.08-1.10",
+  "version": "2026.08.08-2.0",
   "updated": "2026-08-08",
   "description": "低風險、程序化工作訊息生成語料庫。用於從工作情境推定可執行而不具懲罰性的下一步，並提供自然、精簡、正式三類生成素材。模板不是個案法律意見，也不保證特定人事處置合法；敏感情境預設禁止自動補出解僱、扣薪、降調、報復申訴、歧視、強迫加班、性化要求或不必要私人資料蒐集。",
-  "scenarioCount": 135,
-  "exampleCount": 3240,
+  "scenarioCount": 136,
+  "exampleCount": 3264,
   "scenarios": [
     {
       "id": "doc_quality_報告",
@@ -5983,6 +5983,61 @@
         "格式",
         "欄位",
         "版本"
+      ]
+    },
+    {
+      "id": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "keywords": [
+        "語音輸入",
+        "語音辨識",
+        "一直中斷",
+        "不要一直中斷",
+        "自動中斷",
+        "停止語音",
+        "等我停止",
+        "持續聆聽",
+        "續聽",
+        "麥克風",
+        "辨識切段"
+      ],
+      "topic": "語音輸入",
+      "facts": [
+        "目前語音輸入可能在使用者尚未主動停止前自行結束",
+        "目前瀏覽器語音辨識在部分情況會自動切段",
+        "目前使用者需要反覆重新啟動語音輸入才能繼續說話"
+      ],
+      "actions": [
+        "讓語音輸入持續聆聽，直到使用者主動按下停止；若辨識服務自行切段則自動續聽",
+        "避免單次辨識結束後直接關閉語音輸入，改為在未收到停止指令時自動重新啟動",
+        "保留使用者主動停止的控制權，辨識服務自行結束時自動接續下一段"
+      ],
+      "reasons": [
+        "減少反覆按下語音按鈕造成的操作中斷",
+        "讓較長的工作內容能夠連續口述",
+        "降低瀏覽器自動切段對輸入流程的影響"
+      ],
+      "purpose": "correct",
+      "audiences": [
+        "coworker",
+        "supervisor",
+        "client",
+        "student",
+        "public"
+      ],
+      "safeAutofillAction": true,
+      "sensitive": false,
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵",
+        "操作中斷"
+      ],
+      "guardrail": "應將對設計者或系統的辱罵轉回可重現的操作問題、預期行為與停止條件，不保留「很爛、白癡、笨」等人格或情緒性評價。",
+      "objects": [
+        "語音輸入",
+        "語音辨識",
+        "停止語音",
+        "持續聆聽"
       ]
     }
   ],
@@ -43568,6 +43623,318 @@
       "riskTags": [
         "責罵",
         "能力羞辱"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-1",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "目前語音輸入會在還沒主動停止前自行結束。希望改成持續聆聽，只有按下停止語音才結束；如果瀏覽器自己切段，就自動接著聽。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-2",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "現在語音辨識有時會自己中斷，使用上需要一直重新按按鈕。麻煩改成在使用者沒有按停止時自動續聽。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-3",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "語音輸入目前會因辨識服務切段而停止。希望保留持續輸入，等使用者主動按停止後再真正結束。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-4",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "目前長一點的語音輸入容易被自動切斷。可以在每段辨識結束後自動續聽，直到使用者按停止。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-5",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "想調整語音輸入的停止方式：不要因瀏覽器結束單次辨識就一起停止，只有使用者主動停止才結束。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-6",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "目前需要反覆重新啟動語音輸入才能把內容說完。希望辨識自動切段後能接續下一段，不影響口述。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-7",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "語音辨識如果只是暫時切段，希望系統自動重新開始，不要把它當成使用者已經停止。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-natural-8",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "natural",
+      "text": "目前語音輸入的連續性不足。請改成持續聆聽模式，直到使用者明確按下停止。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-1",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "語音輸入會自行中斷。請持續聆聽到使用者按停止；瀏覽器切段時自動續聽。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-2",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "請勿因單次語音辨識結束就停止輸入；未按停止時應自動重新啟動。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-3",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "請將語音輸入改為持續模式，只有使用者主動停止才結束。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-4",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "辨識服務自動切段時請續聽，不要要求使用者重新按語音按鈕。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-5",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "請保留持續口述；未收到停止指令時自動接續下一段辨識。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-6",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "語音辨識可能自動結束單段。請將單段結束視為切段並自動續聽。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-7",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "請避免語音輸入自行停止，改由使用者按停止控制結束。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-concise-8",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "concise",
+      "text": "長語音被切段後請自動續聽，直到使用者按下停止。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-1",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "目前語音輸入可能於使用者尚未主動停止前自行結束。請調整為持續聆聽機制，並於辨識服務自動切段時重新啟動，直至使用者明確停止。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-2",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "目前瀏覽器語音辨識於部分情況會自動結束單次工作階段。請將該情形視為辨識切段，於未收到停止指令時自動續行。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-3",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "為避免使用者反覆重新啟動語音輸入，請保留持續辨識狀態，僅於使用者主動停止時結束。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-4",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "請調整語音輸入之停止條件：辨識服務自行結束單次辨識時應自動接續，使用者主動停止時始終止輸入。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-5",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "目前較長口述可能因瀏覽器切段而中止。請於未收到停止指令時自動重新開始辨識，以維持輸入連續性。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-6",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "請將單次辨識結束與使用者停止操作分開處理；前者應自動續聽，後者始終止語音輸入。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-7",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "目前語音輸入的控制權容易受瀏覽器自動切段影響。請以使用者主動停止作為最終結束條件。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
+      ],
+      "sensitive": false
+    },
+    {
+      "id": "voice_input_continuity-formal-8",
+      "scenarioId": "voice_input_continuity",
+      "category": "語音輸入與持續辨識",
+      "style": "formal",
+      "text": "請建立持續語音輸入機制，於辨識自動切段後接續下一段，直到使用者明確執行停止操作。",
+      "purpose": "correct",
+      "riskTags": [
+        "情緒性產品回饋",
+        "辱罵"
       ],
       "sensitive": false
     }

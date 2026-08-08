@@ -1,59 +1,39 @@
 # -*- coding: utf-8 -*-
-"""Local launcher: serves the static site and Python rewrite API on localhost."""
+"""Local static launcher for Respectful Message Guard 2.0.
+
+The rewrite model, corpora and scoring engine run in the browser. Python is used
+only to serve the bundled files from 127.0.0.1 so browser APIs work under a
+normal HTTP origin. No text is posted to this server and no network access is
+required.
+"""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-import json
 import os
-import sys
 import webbrowser
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
-sys.path.insert(0, str(HERE))
-from rewrite_engine import process, VERSION
-
+ROOT = Path(__file__).resolve().parent.parent
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("RMG_PORT", "8765"))
+VERSION = "2.0.0"
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
-    def do_GET(self):
-        if self.path == "/api/health":
-            self._json({"ok": True, "engine": "python", "version": VERSION})
-            return
-        return super().do_GET()
-
-    def do_POST(self):
-        if self.path != "/api/rewrite":
-            self.send_error(404)
-            return
-        try:
-            length = min(int(self.headers.get("Content-Length", "0")), 200000)
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            self._json(process(payload))
-        except Exception as exc:
-            self._json({"ok": False, "error": str(exc)}, status=400)
-
-    def _json(self, obj, status=200):
-        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+    def end_headers(self):
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        super().end_headers()
 
     def log_message(self, fmt, *args):
-        # Do not log request bodies; static/API paths only.
-        sys.stdout.write("[local] " + (fmt % args) + "\n")
+        print("[local] " + (fmt % args))
 
 if __name__ == "__main__":
     url = f"http://{HOST}:{PORT}/"
     print(f"訊息溝通風險檢核器 v{VERSION}")
-    print(f"Python 潤稿引擎：{url}")
-    print("關閉此視窗即可停止本機服務。輸入文字不會離開本機。")
+    print(f"本機網站：{url}")
+    print("文字模型、語料庫與潤稿皆在瀏覽器本機執行；Python 只提供靜態網站。")
+    print("關閉此視窗即可停止本機服務。")
     try:
         webbrowser.open(url)
     except Exception:
