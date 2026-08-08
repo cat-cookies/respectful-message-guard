@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="職場與服務溝通風險檢核器。可從原始訊息抽取真正工作意圖、移除羞辱與情緒施壓、補成可執行內容，再以本機 Python／瀏覽器 Python／離線 JavaScript 分層引擎重新生成繁體中文訊息。">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests">
+  <meta name="color-scheme" content="light dark">
+  <title>訊息溝通風險檢核器</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">跳至主要內容</a>
+
+  <noscript>
+    <div class="noscript">本網站需要 JavaScript 才能在瀏覽器本機分析文字；不會將內容傳送至伺服器。</div>
+  </noscript>
+
+  <section id="introScreen" class="intro-screen" aria-labelledby="introTitle">
+    <div class="intro-shell">
+      <header class="intro-header">
+        <div>
+          <p class="eyebrow">使用前法制說明</p>
+          <h1 id="introTitle">中華民國的跟蹤、騷擾與霸凌，不是同一套法律</h1>
+          <p class="lead">同一句不當訊息，可能依發生場域、雙方身分、權勢關係、是否持續，以及是否與性或性別有關，而分別適用不同制度。請先閱讀，再進入文字檢核功能。</p>
+        </div>
+        <div class="privacy-badges" aria-label="隱私設計">
+          <span>本機處理</span><span>零文字上傳</span><span>無追蹤</span><span>不留存內容</span>
+        </div>
+      </header>
+
+      <section class="intro-notice" aria-labelledby="routeTitle">
+        <h2 id="routeTitle">先看關係與場域，再看行為本身</h2>
+        <div class="notice-grid">
+          <div>
+            <h3>職場：先看權勢與工作必要性</h3>
+            <p>主管可以指示、糾正、考核，也可以依法啟動人事程序；但管理權不是羞辱、威脅或報復的授權。判斷時要把具體工作事實、職務或權勢關係、是否逾越業務必要合理範圍、發生頻率與造成的影響一起看。</p>
+          </div>
+          <div>
+            <h3>涉及性或性別：另開一條法制分流</h3>
+            <p>性要求、性意味言詞，以及以性別或性別氣質羞辱他人的文字，不只是「講話難聽」。在工作場所造成敵意、脅迫或冒犯環境時，可能進入性別平等工作法的性騷擾制度；校園或其他場所則須依各自制度處理。</p>
+          </div>
+          <div>
+            <h3>反覆聯絡、守候、掌握行蹤：再檢查跟蹤騷擾</h3>
+            <p>跟蹤騷擾不是所有惱人訊息的總稱。法律另要求反覆或持續、違反意願、法定行為態樣、與性或性別相關等要件，並須達到使人心生畏怖、足以影響日常生活或社會活動的程度。</p>
+          </div>
+          <div>
+            <h3>人事處分與申訴不能混在怒斥裡</h3>
+            <p>解僱、資遣、調動、減薪、排班、考績或懲處應依事實、權限與正式程序處理；如果是因勞工依法申訴或協助申訴而給予不利益，還可能另有禁止報復規範。傳訊息時應把「工作要求」與「人事處置」分開。</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="legal-map" role="list" aria-label="法制分流">
+        <article role="listitem" class="law-card">
+          <h2>一般勞動職場霸凌</h2>
+          <p>勞工在勞動場所執行職務，因事業單位人員利用職務或權勢，逾越業務必要且合理範圍，持續以冒犯、威脅、冷落、孤立、侮辱或其他不當言行，致身心健康受危害；情節重大者，不以持續發生為必要。</p>
+          <p class="law-path">主要法源：職業安全衛生法第22條之1至第22條之3、職場霸凌防治措施準則。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>公務人員職場霸凌</h2>
+          <p>公務人員有另行的安全衛生防護與申訴處理制度，不能只套用一般勞工程序。機關須設防護機制、採取立即保護措施，並依規定調查與決定。</p>
+          <p class="law-path">主要法源：公務人員保障法、公務人員執行職務安全及衛生防護辦法。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>工作場所性騷擾</h2>
+          <p>執行職務時出現性要求、性意味或性別歧視言詞、圖片、貼圖或動作，造成敵意、脅迫或冒犯性工作環境，通常依工作場域的性騷擾制度處理。</p>
+          <p class="law-path">主要法源：性別平等工作法、工作場所性騷擾防治措施準則。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>一般場所性騷擾</h2>
+          <p>不屬職場或校園特別制度時，違反意願、與性或性別有關，且損害人格尊嚴或造成畏怖、敵意、冒犯情境的行為，可能適用一般性騷擾防治制度。</p>
+          <p class="law-path">主要法源：性騷擾防治法及其相關準則。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>跟蹤騷擾</h2>
+          <p>對特定人反覆或持續為違反其意願、與性或性別有關的監視、尾隨、威脅貶抑、通訊干擾、不當追求、寄送物品、散布名譽訊息或濫用個資，並使人心生畏怖、足以影響日常生活或社會活動，才進入跟蹤騷擾法制。</p>
+          <p class="law-path">主要法源：跟蹤騷擾防制法；家庭或親密關係案件另須注意家庭暴力防治法。</p>
+        </article>
+
+        <article role="listitem" class="law-card">
+          <h2>校園霸凌與校園性別事件</h2>
+          <p>對學生持續以言語、文字、圖畫、符號、電子通訊或其他方式貶抑、排擠、欺負、騷擾或戲弄，與涉及性或性別的事件，應依身分與事件類型分流，不宜混成同一程序。</p>
+          <p class="law-path">主要法源：校園霸凌防制準則、性別平等教育法。</p>
+        </article>
+      </div>
+
+      <section class="intro-notice" aria-labelledby="noticeTitle">
+        <h2 id="noticeTitle">這個網站能做什麼，以及不能做什麼</h2>
+        <div class="notice-grid">
+          <div>
+            <h3>可以協助</h3>
+            <p>在送出訊息或下達工作要求前，辨識辱罵、威脅、嘲諷、權勢壓迫、性或性別言詞、持續聯絡暗示、揭露隱私與非必要個資；也會檢查陪酒、私人差事、無限待命、不合理工作分派、偽造紀錄與規避安全程序等「工作內容本身」的風險。</p>
+          </div>
+          <div>
+            <h3>不能取代</h3>
+            <p>網站不會認定某人已違法、成立霸凌或成立性騷擾。法律判斷仍須結合背景、頻率、場域、權勢關係、工作必要性、主觀意願、客觀影響與證據，由有權機關或專業人員處理。</p>
+          </div>
+        </div>
+      </section>
+
+      <details class="source-details">
+        <summary>查看官方法規與資料來源</summary>
+        <ul>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0060001" target="_blank" rel="noopener noreferrer">職業安全衛生法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001" target="_blank" rel="noopener noreferrer">勞動基準法</a></li>
+          <li><a href="https://laws.mol.gov.tw/FLAW/FLAWDAT01.aspx?id=FL106701" target="_blank" rel="noopener noreferrer">職場霸凌防治措施準則</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0060009" target="_blank" rel="noopener noreferrer">職業安全衛生設施規則</a></li>
+          <li><a href="https://www.osha.gov.tw/48110/48713/48735/135152/post" target="_blank" rel="noopener noreferrer">執行職務遭受不法侵害預防指引（第五版）</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=A0030050" target="_blank" rel="noopener noreferrer">公務人員執行職務安全及衛生防護辦法</a></li>
+          <li><a href="https://www.csptc.gov.tw/News.aspx?n=4555&sms=12512" target="_blank" rel="noopener noreferrer">保訓會職場霸凌防治專區（公務人員保障法第19條等）</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=N0030014" target="_blank" rel="noopener noreferrer">性別平等工作法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030019" target="_blank" rel="noopener noreferrer">工作場所性騷擾防治措施準則</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=D0050074" target="_blank" rel="noopener noreferrer">性騷擾防治法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0080211" target="_blank" rel="noopener noreferrer">跟蹤騷擾防制法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=H0020081" target="_blank" rel="noopener noreferrer">校園霸凌防制準則</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0080067" target="_blank" rel="noopener noreferrer">性別平等教育法</a></li>
+          <li><a href="https://law.moj.gov.tw/LawClass/LawAll.aspx?PCode=I0050021" target="_blank" rel="noopener noreferrer">個人資料保護法</a></li>
+        </ul>
+        <p class="updated">法規頁面與說明最後查核：2026年8月7日。使用時仍應以主管機關最新公布內容為準。</p>
+      </details>
+
+      <div class="intro-consent">
+        <label class="check-row" for="hideIntroSession">
+          <input id="hideIntroSession" type="checkbox">
+          <span>我已閱讀；在這個分頁關閉前，不再顯示本說明</span>
+        </label>
+        <button id="enterAppButton" class="primary-button" type="button">確認並進入功能頁</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell" hidden>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">瀏覽器本機處理</p>
+        <h1>訊息溝通風險檢核器</h1>
+        <p>貼上原始訊息後，系統會先抽出真正工作意圖，再移除羞辱、威脅與情緒施壓，補成可執行內容後重新生成訊息；不直接複製原句。</p>
+      </div>
+      <div class="header-actions">
+        <span class="corpus-chip">潤稿引擎：<strong id="engineStatus">偵測中</strong></span>
+        <span class="corpus-chip">離線語料庫：<strong id="corpusStats">載入中</strong></span>
+        <button id="showIntroButton" class="ghost-button" type="button">重新閱讀法制說明</button>
+        <button id="showPrivacyButton" class="ghost-button" type="button">隱私與技術說明</button>
+      </div>
+    </header>
+
+    <main id="mainContent" class="main-layout">
+      <section class="panel input-panel" aria-labelledby="inputTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="step-label">步驟一｜風險檢核＋工作意圖抽取</p>
+            <h2 id="inputTitle">貼上原始訊息</h2>
+            <p class="field-help strong-help">系統會從原始訊息抽取「工作主題、客觀事實、要求行動、期限、原因／影響」，並在有明確稱呼時辨識「對象線索」；<strong>辱罵、羞辱、威脅與情緒施壓只作為風險訊號，不會直接成為輸出句子。</strong></p>
+          </div>
+          <button id="loadExampleButton" class="text-button" type="button">載入示例</button>
+        </div>
+
+        <div class="field-grid">
+          <label>
+            <span>對方身分</span>
+            <select id="audienceSelect">
+              <option value="coworker">同事或部屬</option>
+              <option value="supervisor">主管</option>
+              <option value="client">案家、服務對象或家屬</option>
+              <option value="student">學生、家長或受訓者</option>
+              <option value="public">一般民眾或外部合作對象</option>
+            </select>
+          </label>
+          <label>
+            <span>溝通目的</span>
+            <select id="purposeSelect">
+              <option value="remind">提醒或催辦</option>
+              <option value="correct">指出錯誤或要求修正</option>
+              <option value="rule">說明規則或界線</option>
+              <option value="refuse">拒絕不合理要求</option>
+              <option value="schedule">排班、分工或服務安排</option>
+              <option value="general">一般溝通</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="textarea-label smart-field">
+          <div class="field-label-row">
+            <label for="sourceText">原始訊息（供風險檢核與工作意圖抽取）</label>
+            <button class="voice-input-button" type="button" data-voice-target="sourceText" aria-label="用語音輸入原始訊息">🎙 語音輸入</button>
+          </div>
+          <textarea id="sourceText" rows="12" maxlength="8000" placeholder="例如：你到底要講幾次才懂？再不回我就不用來了！😡 [貼圖] 王小明的電話是0912345678，大家自己看著辦。"></textarea>
+        </div>
+        <div class="textarea-meta">
+          <span id="charCount">0 / 8000</span>
+          <span>文字內容只在本機處理。若啟用瀏覽器 Python，只會從 CDN 下載 Python 執行環境，不會把你的訊息送到 CDN。</span>
+        </div>
+        <p id="voiceStatus" class="voice-status" role="status">語音輸入使用瀏覽器的語音辨識功能；支援裝置端辨識時會優先使用，否則瀏覽器可能使用其線上語音服務。文字潤稿本身仍不會送到雲端文字模型。</p>
+        <p id="pasteNotice" class="paste-notice" role="status" hidden>偵測到剪貼簿內含圖片或貼圖。本網站不會讀取、上傳或保存圖片；分析時會將「使用貼圖」列為溝通風險提醒。</p>
+        <section class="substance-box" aria-labelledby="substanceTitle">
+          <div class="substance-heading">
+            <div>
+              <p class="step-label">步驟二｜確認自動抽取結果</p>
+              <h3 id="substanceTitle">真正要傳達的工作內容</h3>
+            </div>
+            <span class="source-lock-badge">先抽取，再重寫</span>
+          </div>
+          <p class="field-help"><strong>預設會先從原始訊息自動填入空白欄位；你可以再修正。</strong>系統仍會檢查「工作要求本身」是否合理。涉及陪酒／私人差事、強制社交、休假或下班後持續待命、明顯不合理目標、性別化要求、不實紀錄或安全程序規避時，會直接提示或阻止產生可複製版本。</p>
+          <label class="check-row extraction-option" for="autoExtractOption">
+            <input id="autoExtractOption" type="checkbox" checked>
+            <span>自動從原始訊息抽取工作意圖，僅補入目前空白欄位</span>
+          </label>
+          <p id="extractionStatus" class="extraction-status" role="status">尚未抽取。</p>
+
+          <p class="smart-field-help">不知道怎麼寫時，可以先從「常用選項」挑最接近的內容，再自行修改；每個欄位也可直接用語音輸入。選項會依工作主題動態更新，不必硬套模板。</p>
+
+          <div class="textarea-label smart-field">
+            <div class="field-label-row">
+              <label for="topicText">事項或工作主題</label>
+              <button class="voice-input-button" type="button" data-voice-target="topicText" aria-label="用語音輸入工作主題">🎙 語音輸入</button>
+            </div>
+            <select id="topicPresetSelect" class="smart-preset-select" aria-label="選擇常見工作主題">
+              <option value="">常用選項：先選工作主題</option>
+            </select>
+            <input id="topicText" type="text" maxlength="160" placeholder="例如：排班、報告修正、工作進度；也可自行輸入其他主題">
+          </div>
+
+          <div class="textarea-label smart-field">
+            <div class="field-label-row">
+              <label for="factText">客觀事實／目前狀況</label>
+              <button class="voice-input-button" type="button" data-voice-target="factText" aria-label="用語音輸入客觀事實">🎙 語音輸入</button>
+            </div>
+            <select id="factPresetSelect" class="smart-preset-select" aria-label="選擇常見客觀事實">
+              <option value="">常用選項：依工作主題提供目前狀況</option>
+            </select>
+            <textarea id="factText" rows="4" maxlength="1600" placeholder="例如：目前收到的檔案仍缺少附件二，且版本日期與會議確認內容不一致。"></textarea>
+          </div>
+
+          <div class="textarea-label smart-field">
+            <div class="field-label-row">
+              <label for="actionText">希望對方完成、停止或確認的行動</label>
+              <button class="voice-input-button" type="button" data-voice-target="actionText" aria-label="用語音輸入希望對方採取的行動">🎙 語音輸入</button>
+            </div>
+            <select id="actionPresetSelect" class="smart-preset-select" aria-label="選擇常見工作行動">
+              <option value="">常用選項：依工作主題提供下一步</option>
+            </select>
+            <textarea id="actionText" rows="3" maxlength="1000" placeholder="例如：重新確認附件二並上傳正確版本。"></textarea>
+          </div>
+
+          <div class="field-grid substance-grid">
+            <label class="voice-compact-field">
+              <span>期限或回覆時間（選填）</span>
+              <div class="inline-input-with-button">
+                <input id="deadlineText" type="text" maxlength="240" placeholder="例如：今天下午 5 時前">
+                <button class="voice-input-button compact" type="button" data-voice-target="deadlineText" aria-label="用語音輸入期限">🎙</button>
+              </div>
+            </label>
+            <label>
+              <span>溝通強度</span>
+              <select id="toneSelect">
+                <option value="cooperative">協調、留有討論空間</option>
+                <option value="directive" selected>明確督導、要求執行</option>
+                <option value="formal">正式嚴正、保留程序</option>
+              </select>
+            </label>
+            <label>
+              <span>潤稿風格</span>
+              <select id="rewriteStyleSelect">
+                <option value="natural" selected>自然工作訊息</option>
+                <option value="concise">精簡直接</option>
+                <option value="formal">正式書面</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="textarea-label smart-field">
+            <div class="field-label-row">
+              <label for="reasonText">原因、影響或正式程序（選填）</label>
+              <button class="voice-input-button" type="button" data-voice-target="reasonText" aria-label="用語音輸入原因或影響">🎙 語音輸入</button>
+            </div>
+            <select id="reasonPresetSelect" class="smart-preset-select" aria-label="選擇常見原因或影響">
+              <option value="">常用選項：依工作主題提供原因或影響</option>
+            </select>
+            <textarea id="reasonText" rows="3" maxlength="1000" placeholder="例如：需於明日上午會議前完成彙整，避免後續使用錯誤版本。"></textarea>
+          </div>
+
+          <div class="textarea-label smart-field">
+            <div class="field-label-row">
+              <label for="basisText">工作必要性／職務依據（涉及宴會、飲酒、下班後、私人差事或專業敏感詞時建議填寫）</label>
+              <button class="voice-input-button" type="button" data-voice-target="basisText" aria-label="用語音輸入工作必要性或職務依據">🎙 語音輸入</button>
+            </div>
+            <textarea id="basisText" rows="3" maxlength="1200" placeholder="例如：此為客戶專案既定會議；出席屬專案工作，但飲酒與續攤非必要且可拒絕。若為醫療／法律／教育／研究用語，請說明專業目的。"></textarea>
+            <small class="field-note">此欄預設只供工作合理性檢核，不會自動寫進對外訊息；也不能用來「洗白」不合理要求。</small>
+          </div>
+          <label class="check-row output-basis-option" for="includeBasisOption">
+            <input id="includeBasisOption" type="checkbox">
+            <span>確有需要時，才把職務依據寫入建議版本</span>
+          </label>
+        </section>
+
+
+        <fieldset class="option-box">
+          <legend>檢核設定</legend>
+          <label><input id="removeEmojiOption" type="checkbox" checked> 移除表情符號、貼圖標記與過度標點</label>
+          <label><input id="maskPiiOption" type="checkbox" checked> 遮罩明顯的身分證字號、電話、電子郵件、地址與病歷號</label>
+        </fieldset>
+
+        <div class="button-row">
+          <button id="analyzeButton" class="primary-button" type="button">檢核並產生可複製版本</button>
+          <button id="clearButton" class="secondary-button" type="button">清除全部</button>
+        </div>
+        <p id="inputError" class="error-message" role="alert" hidden></p>
+      </section>
+
+      <section id="resultPanel" class="panel result-panel" aria-labelledby="resultTitle" aria-live="polite">
+        <div class="panel-heading">
+          <div>
+            <p class="step-label">步驟三｜輸出</p>
+            <h2 id="resultTitle">去除高風險語句後的工作訊息建議</h2>
+            <p class="result-subtitle">通過工作合理性與風險檢核後，引擎會依抽取或人工修正後的工作內容重新生成句子。原始訊息只提供意圖抽取與風險判斷，不會直接複製成結果；三種版本可切換比較。</p>
+          </div>
+          <div id="riskBadge" class="risk-badge neutral">尚未檢核</div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+          <h3>尚未產生結果</h3>
+          <p>貼上原始訊息後可直接按「檢核並潤稿」。系統會先抽取工作意圖並補入空白欄位，再進行工作合理性與風險檢核，最後重新生成可直接傳送的版本。</p>
+        </div>
+
+        <div id="resultContent" hidden>
+          <section class="rewrite-variant-box" aria-labelledby="variantTitle">
+            <div class="variant-heading">
+              <div>
+                <h3 id="variantTitle">比較三種潤稿版本</h3>
+                <p id="variantHint">三種版本都使用「抽取／確認後的實質工作內容」，不直接複製原句。</p>
+              </div>
+              <div class="variant-tabs" role="group" aria-label="潤稿版本">
+                <button id="variantNaturalButton" class="variant-button" type="button" aria-pressed="false">自然工作訊息</button>
+                <button id="variantConciseButton" class="variant-button" type="button" aria-pressed="false">精簡直接</button>
+                <button id="variantFormalButton" class="variant-button" type="button" aria-pressed="false">正式書面</button>
+              </div>
+            </div>
+          </section>
+
+          <label class="textarea-label" for="safeText">
+            <span>目前選取版本</span>
+            <textarea id="safeText" rows="10" readonly></textarea>
+          </label>
+          <p id="outputSourceNotice" class="output-source-notice safe">建議版本會由抽取／確認後的實質工作內容重新生成。</p>
+
+          <section class="coverage-box" aria-labelledby="coverageTitle">
+            <div>
+              <strong id="coverageTitle">內容保留檢核</strong>
+              <span>用來提醒潤稿後是否仍保留你輸入的主要工作資訊；不是語意等價的法律保證。</span>
+            </div>
+            <div id="coverageList" class="coverage-list"></div>
+          </section>
+
+          <div class="button-row compact">
+            <button id="copyButton" class="primary-button" type="button">複製目前版本</button>
+            <button id="regenerateButton" class="secondary-button" type="button">換一個通順說法</button>
+          </div>
+          <p id="copyStatus" class="copy-status" role="status"></p>
+
+          <section class="summary-strip" aria-label="檢核摘要">
+            <div><span id="corpusHitCount">0</span><small>項語料／規則命中</small></div>
+            <div><span id="workRiskCount">0</span><small>項工作內容風險</small></div>
+            <div><span id="privacyCount">0</span><small>項個資提醒</small></div>
+            <div><span id="blockedCount">0</span><small>項輸出攔截或遮罩</small></div>
+          </section>
+
+          <section aria-labelledby="reasonTitle">
+            <div class="subheading">
+              <h3 id="reasonTitle">為何不宜這樣說</h3>
+              <p>每個命中項目都對應本機離線語料庫代碼、風險警示、較安全處理方式與法制提示；仍不是違法或成立霸凌的法律認定。</p>
+            </div>
+            <div id="findingList" class="finding-list"></div>
+          </section>
+
+          <details class="limitations source-method">
+            <summary>離線語料庫如何建立</summary>
+            <p>語料庫不是只列髒話。網站將來源分成「現行法規／官方指引與FAQ／司法實務／完整案例語料」，再形成四層判讀：高風險用語、語言學結構、完整案例相似語句、工作內容合理性規則。每個命中項目會顯示來源連結。判決只用來建立風險類型與上下文規則，不把個案裁判結果機械套用到新事件。</p>
+          </details>
+
+          <details class="limitations" open>
+            <summary>判讀限制與使用界線</summary>
+            <p>單一訊息通常不足以判斷職場霸凌、性騷擾或跟蹤騷擾是否成立。請保留完整對話、時間、對象、工作指示、回應、傳送頻率與其他背景；若已發生安全威脅、持續騷擾、報復或重大身心危害，應循組織申訴、主管機關、警察或專業法律協助處理。</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <section class="legal-reference-section" aria-labelledby="legalRefTitle">
+      <div class="section-heading">
+        <p class="eyebrow">法規檢核範圍</p>
+        <h2 id="legalRefTitle">網站納入的主要法律風險</h2>
+        <p>並非每項法規都會同時適用；應依身分、場域與行為態樣分流。</p>
+      </div>
+      <div id="legalReferenceGrid" class="reference-grid"></div>
+      <details class="source-catalog-details">
+        <summary>查看離線語料庫的法規、官方指引與判決來源（<span id="sourceCatalogCount">0</span>）</summary>
+        <p class="source-catalog-note">來源採分層使用：現行法規與主管機關指引／FAQ作為主要規範依據；司法院判決說明與公開裁判資料用來補足具體行為態樣及上下文。網站不會在使用時連線查詢，這些連結只供使用者自行查證。</p>
+        <div id="sourceCatalogList" class="source-catalog-grid"></div>
+      </details>
+    </section>
+
+    <footer class="site-footer">
+      <p>本工具採離線語料庫、工作合理性規則與多層潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
+      <p>版本 1.9.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機 Python 優先、瀏覽器 Python 可用、離線 JavaScript 保底；無雲端文字 API、無分析追蹤、無 Cookie。</p>
+    </footer>
+  </div>
+
+  <dialog id="privacyDialog" class="privacy-dialog" aria-labelledby="privacyTitle">
+    <div class="dialog-head">
+      <h2 id="privacyTitle">隱私、資訊安全與低耗能設計</h2>
+      <button id="closePrivacyButton" class="icon-button" type="button" aria-label="關閉">×</button>
+    </div>
+    <div class="dialog-body">
+      <h3>文字仍在本機處理</h3>
+      <p>網站沒有帳號、伺服器資料庫、雲端文字模型、分析追蹤或廣告程式。高風險資料直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>；若瀏覽器 Python 可用，頁面只會向固定 CDN 下載 Pyodide 執行環境，輸入文字仍在你的瀏覽器內執行，不會送到第三方文字 API。</p>
+      <h3>工作內容也會被檢核</h3>
+      <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
+      <h3>原始訊息先抽取，不直接複製</h3>
+      <p>原始訊息會先被拆成工作主題、客觀事實、要求行動、期限與原因／影響；若句首有明確稱呼，也會辨識對象線索。辱罵、羞辱、性意味、威脅與情緒施壓只作為風險訊號並在抽取階段移除；輸出使用抽取後的結構化內容重新生成，另有「原句直接複製」相似度防護。</p>
+      <h3>潤稿不是固定模板拼接</h3>
+      <p>系統會依溝通目的、對象、強度與文字風格產生多個候選句，先排除不通順、高風險與內容缺漏版本，再依品質分數做加權抽選。常用、完整、分數較高的說法被選到的機率較高，但不會每次都固定輸出同一句。職務依據預設只供安全判讀，不會自動塞進訊息。</p>
+      <h3>資料最小化</h3>
+      <p>原始文字與結果不寫入 localStorage、IndexedDB、Cookie 或檔案。只有「本分頁是否略過法制說明」會以 sessionStorage 記錄；關閉分頁後即失效。</p>
+      <h3>網路使用範圍</h3>
+      <p>GitHub Pages 線上使用時，頁面可向 jsDelivr 下載固定版本的 Pyodide 執行環境；不會把輸入文字加入網址、請求內容或送至第三方 API。本機啟動版只呼叫 127.0.0.1 的 Python 服務；若 Python 不可用，核心功能會退回隨網站一起部署的 JavaScript 引擎。</p>
+      <h3>語音輸入另有瀏覽器層級限制</h3>
+      <p>網站會優先要求裝置端繁體中文語音辨識；若目前瀏覽器或裝置不支援，Web Speech API 可能改由瀏覽器供應商的線上語音服務處理音訊。本站不保存音訊，也不把辨識後文字送到雲端文字模型。若工作內容高度敏感，建議改用鍵盤或作業系統的離線聽寫功能。</p>
+      <h3>低耗能</h3>
+      <p>使用小型規則引擎，不下載大型模型、不進行伺服器推論，也不持續背景運算。分析只在按下按鈕時執行。</p>
+      <h3>仍須注意</h3>
+      <p>若使用共用電腦、瀏覽器外掛、剪貼簿同步或作業系統雲端剪貼簿，仍可能產生額外風險。貼入前宜先自行刪除非必要姓名、地址、病歷與聯絡資料。</p>
+    </div>
+  </dialog>
+
+  <script src="bullying-corpus.js" defer></script>
+  <script src="safe-message-corpus.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
