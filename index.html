@@ -158,7 +158,7 @@
       <section class="panel input-panel" aria-labelledby="inputTitle">
         <div class="panel-heading">
           <div>
-            <p class="step-label">步驟一｜原始訊息 → 自動拆解工作內容</p>
+            <p class="step-label">步驟一｜輸入原始訊息並自動抽取工作內容</p>
             <h2 id="inputTitle">貼上原始訊息</h2>
             <p class="field-help strong-help">系統會先把同一段原始訊息拆成兩條資料流：一條找出「工作主題、客觀事實、要求行動、期限、原因／影響」，另一條保留需要檢視的羞辱、威脅、性化、騷擾或情緒施壓訊號。<strong>下一區就是這裡抽出的工作內容，可直接人工修正；不是另一套互不相干的輸入。</strong></p>
           </div>
@@ -218,17 +218,14 @@
         <section class="substance-box" aria-labelledby="substanceTitle">
           <div class="substance-heading">
             <div>
-              <p class="step-label">步驟一延伸｜確認／修正自動抽取結果</p>
+              <p class="step-label">步驟二｜確認／修正步驟一的抽取結果</p>
               <h3 id="substanceTitle">真正要傳達的工作內容</h3>
             </div>
-            <span class="source-lock-badge">先抽取，再重寫</span>
+            <span class="source-lock-badge">原始訊息 → 抽取 → 人工確認 → 重寫</span>
           </div>
-          <p class="field-help"><strong>這些欄位就是步驟一的自動抽取結果。</strong>原始訊息一變更，尚未人工修改的欄位會跟著更新；你手動修正過的欄位會保留，不會被下一次語音或重新抽取偷偷蓋掉。人工內容仍會經過去責罵化、事實化與工作合理性檢核。</p>
+          <p class="field-help"><strong>這裡不是第二套資料來源，而是步驟一原始訊息的可編輯抽取結果。</strong>系統先自動帶入主題、事實、行動、期限與原因；你只需要確認或修正不精確的地方。按下下方按鈕後，系統會以「原始訊息＋你確認後的抽取內容」一起做風險檢核，再生成可直接傳送的版本。</p>
           <div class="extraction-sync-row">
-            <label class="check-row extraction-option" for="autoExtractOption">
-              <input id="autoExtractOption" type="checkbox" checked>
-              <span>原始訊息變更時，自動同步尚未人工修改的欄位</span>
-            </label>
+            <div class="extraction-flow-note"><strong>自動同步：</strong>原始訊息變更時，系統會更新尚未人工修改的欄位；人工修正過的欄位會保留。</div>
             <div class="button-row compact extraction-actions">
               <button id="reextractButton" class="secondary-button" type="button">重新抽取（保留人工修正）</button>
               <button id="resetAutoExtractionButton" class="secondary-button" type="button">全部改回自動抽取</button>
@@ -336,7 +333,7 @@
         </fieldset>
 
         <div class="button-row">
-          <button id="analyzeButton" class="primary-button" type="button">檢核並產生可複製版本</button>
+          <button id="analyzeButton" class="primary-button" type="button">確認抽取結果並產生可複製版本</button>
           <button id="clearButton" class="secondary-button" type="button">清除全部</button>
         </div>
         <p id="inputError" class="error-message" role="alert" hidden></p>
@@ -345,16 +342,16 @@
       <section id="resultPanel" class="panel result-panel" aria-labelledby="resultTitle" aria-live="polite">
         <div class="panel-heading">
           <div>
-            <p class="step-label">步驟二｜產生可傳送版本</p>
+            <p class="step-label">步驟三｜檢核並產生可傳送版本</p>
             <h2 id="resultTitle">去除高風險語句後的工作訊息建議</h2>
-            <p class="result-subtitle">通過工作合理性與風險檢核後，引擎會依抽取或人工修正後的工作內容重新生成句子。原始訊息只提供意圖抽取與風險判斷，不會直接複製成結果；三種版本可切換比較。</p>
+            <p class="result-subtitle">可複製版本仍以步驟一的原始訊息為來源，但不直接照抄原句；系統會依步驟二已確認／修正的抽取內容進行風險檢核與重新生成。三種版本可切換比較。</p>
           </div>
           <div id="riskBadge" class="risk-badge neutral">尚未檢核</div>
         </div>
 
         <div id="emptyState" class="empty-state">
           <h3>尚未產生結果</h3>
-          <p>貼上原始訊息後可直接按「檢核並產生可複製版本」。系統會先抽取工作意圖並補入空白欄位，再進行工作合理性與風險檢核，最後重新生成可直接傳送的版本。</p>
+          <p>先在步驟一輸入原始訊息，系統會自動把工作重點帶入步驟二。確認或修正抽取結果後，按「確認抽取結果並產生可複製版本」，即可進行風險檢核並產生可直接傳送的版本。</p>
         </div>
 
         <div id="resultContent" hidden>
@@ -362,7 +359,7 @@
             <div class="variant-heading">
               <div>
                 <h3 id="variantTitle">比較三種潤稿版本</h3>
-                <p id="variantHint">三種版本都使用「抽取／確認後的實質工作內容」，不直接複製原句。</p>
+                <p id="variantHint">三種版本都來自步驟一原始訊息，並以步驟二確認後的工作內容重新生成；不直接複製原句。</p>
               </div>
               <div class="variant-tabs" role="group" aria-label="潤稿版本">
                 <button id="variantNaturalButton" class="variant-button" type="button" aria-pressed="false">自然工作訊息</button>
@@ -492,7 +489,7 @@
 
     <footer class="site-footer">
       <p>本工具採離線語料庫、工作合理性規則與多層潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 2.1.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機混合語言模型：情境接龍＋安全／風險轉移權重＋內嵌領域 GRU 流暢度模型；無雲端文字 API。</p>
+      <p>版本 2.1.1｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機混合語言模型：情境接龍＋安全／風險轉移權重＋內嵌領域 GRU 流暢度模型；無雲端文字 API。</p>
     </footer>
   </div>
 
@@ -506,8 +503,8 @@
       <p>網站沒有帳號、伺服器資料庫、雲端文字模型、分析追蹤或廣告程式。高風險語料、安全生成語料、轉移權重所需資料與小型領域神經語言模型都直接包在網站檔案內，目前包含 <strong id="privacyCorpusStats">載入中</strong>。輸入文字與潤稿候選不會送到第三方文字 API。</p>
       <h3>工作內容也會被檢核</h3>
       <p>系統會另外檢查「陪酒／強制社交、疑似私人差事、明顯不合理工作目標、下班或休假持續待命、限制請假、要求不實紀錄、規避安全程序、性別化外貌要求」等工作內容風險。高風險要求不會被改寫成一段看似禮貌、實際仍不合理的命令。</p>
-      <h3>步驟一與步驟二是同一條資料流</h3>
-      <p>原始訊息會先拆成工作主題、客觀事實、要求行動、期限與原因／影響，並立即同步到「確認／修正」欄位；使用者修改過的欄位會被標記為人工修正，後續自動抽取不會覆蓋。辱罵、羞辱、性意味、威脅與情緒施壓則留在風險層，不直接進入輸出。</p>
+      <h3>三個步驟使用同一條資料流</h3>
+      <p>步驟一的原始訊息會先拆成工作主題、客觀事實、要求行動、期限與原因／影響，並同步到步驟二供使用者確認／修正；步驟三再使用這份已確認內容生成訊息，同時保留原始訊息做完整風險掃描。人工修正過的欄位不會被後續自動抽取覆蓋。辱罵、羞辱、性意味、威脅與情緒施壓只進入風險層，不會直接進入輸出。</p>
       <h3>潤稿不是固定模板拼接</h3>
       <p>系統會依工作情境、對象、溝通強度與風格建立多條候選接龍路徑，再同時使用安全語料轉移機率、霸凌語料反向權重、詞彙政策與內嵌神經語言模型評估流暢度。只有通過風險與工作合理性檢核的高分候選才進入加權抽選，因此不是把欄位照順序硬接起來，也不會為了隨機而抽到低品質句子。</p>
       <h3>資料最小化</h3>

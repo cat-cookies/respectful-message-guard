@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Local static launcher for Respectful Message Guard 2.1.
+"""Local static launcher for Respectful Message Guard 2.1.1.
 
 The rewrite model, corpora and scoring engine run in the browser. Python is used
 only to serve the bundled files from 127.0.0.1 so browser APIs work under a
@@ -14,7 +14,7 @@ import webbrowser
 ROOT = Path(__file__).resolve().parent.parent
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("RMG_PORT", "8765"))
-VERSION = "2.1.0"
+VERSION = "2.1.1"
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):

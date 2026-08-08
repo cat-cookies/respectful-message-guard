@@ -1,4 +1,4 @@
-/* Respectful Message Guard 2.1.0 - consolidated production runtime */
+/* Respectful Message Guard 2.1.1 - consolidated production runtime */
 /* Section 1: structured rewrite engine */
 'use strict';
 
@@ -991,6 +991,9 @@
     if (style === 'natural' && /^關於[^。]{1,28}，先說明目前狀況/u.test(text)) score -= 14;
     if (style === 'natural' && /^目前就[^。]{1,28}需要再確認一下/u.test(text)) score -= 12;
     if (style === 'natural' && /。因為[^。]{2,60}，請/u.test(text)) score += 11;
+    // 一般工作訊息較自然的順序通常是「事實 → 行動 → 影響」。
+    // 避免先丟出「這樣可以避免……」再告訴對方要做什麼，讀起來像模板拼接。
+    if (style === 'natural' && /。(?:這樣可以|此舉可|避免)[^。]{2,90}。(?:請|排班前|送出前|上傳前|處理前|回覆前)/u.test(text)) score -= 18;
     if (/說明如下[。；：]/u.test(text)) score -= 20;
     if (/(?:需要要|請請|請先先|麻煩先先|麻煩請|請先(?:避免|保留|讓|維持|持續|停止|改為)|您您|也版本|也日期|也附件|也資料)/u.test(text)) score -= 35;
     if (/^(?:關於|針對)[^。]{1,28}。請/u.test(text)) score -= 22;
@@ -1121,7 +1124,7 @@
     if (!corePresent) {
       return {
         text: '', copyable: false,
-        notice: '原始訊息只用於風險檢核，不會被拿來補寫或組成建議版本。請至少填寫工作主題、客觀事實或希望對方完成的行動。',
+        notice: '尚未從原始訊息抽出足夠的工作內容。請回到原始訊息補充實際工作事項，或在步驟二修正抽取結果。',
         style,
         qualityScore: 0,
         variants: {},
@@ -1166,8 +1169,8 @@
       text: selected,
       copyable: Boolean(selected),
       notice: options.includeBasis
-        ? `已使用「${styleLabel}」潤稿；只讀取實質工作內容，職務依據依你的設定納入文字，原始訊息不會進入輸出。`
-        : `已使用「${styleLabel}」潤稿；只讀取實質工作內容。職務依據預設只供合理性檢核，不會自動寫進訊息，原始訊息也不會進入輸出。`,
+        ? `已使用「${styleLabel}」潤稿；以步驟一原始訊息抽取、並經步驟二確認後的工作內容生成。職務依據依你的設定納入文字；不直接照抄原始句子。`
+        : `已使用「${styleLabel}」潤稿；以步驟一原始訊息抽取、並經步驟二確認後的工作內容生成。職務依據預設只供合理性檢核；不直接照抄原始句子。`,
       style,
       qualityScore: quality[style] || 0,
       variants,
@@ -1257,7 +1260,7 @@
   ];
 
   const FACT_MARKERS = /(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|失敗|退件|沒過|未過|未完成|沒完成|未收到|沒收到|尚未|進度|版本|結果|狀況|情況)/u;
-  const FACT_STATE_MARKERS = /(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|失敗|退件|沒過|未過|未完成|沒完成|未收到|沒收到|尚未|當機|遺失|不見|衝突|異常|延誤|中斷|落差|無法)/u;
+  const FACT_STATE_MARKERS = /(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|不一樣|不同|失敗|退件|沒過|未過|未完成|沒完成|未收到|沒收到|尚未|當機|遺失|不見|衝突|異常|延誤|中斷|落差|無法)/u;
   const ACTION_MARKERS = /(?:請|麻煩|煩請|務必|需要|要|給我|幫我|協助|記得|完成|補|改|修|重做|回覆|回信|上傳|提供|確認|處理|提交|繳交|整理|說明|聯絡|排班|重排|調整|安排|校對|核對|查核|覆核|複核|修成|改成|調整成|修復|暫存|備份|停止|不要再)/u;
   const REASON_MARKERS = /(?:因為|由於|為了|避免|以免|以利|以便|影響|需要於|需於|供後續|後續要|才能|會議[^。！？!?]{0,12}(?:要用|需要使用)|(?:要給|需給)客戶|客戶[^。！？!?]{0,12}(?:要用|需要使用))/u;
   const EMOTIONAL_META = /(?:到底要(?:我)?講幾次|到底講幾次|要(?:我)?講幾次|講幾次才懂|到底懂不懂|到底會不會|有沒有搞錯|搞什麼|是在搞什麼|裝(?:作)?(?:聽不懂|看不懂|不知道|沒看到))/u;
@@ -1823,6 +1826,14 @@
       }
     }
     if (!manual.action && /附件/u.test(topic) && /(?:又少(?:了)?|少了|缺少|缺了)[^。；]{0,18}(?:欄|欄位)/u.test(fact) && /補上缺少的附件/u.test(action)) action = '補上附件中缺少的欄位';
+    // 「附件二又少了／請補齊並上傳正確版本」的工作物件在動作句裡只出現「版本」，
+    // 不能因此誤寫成「補上缺少的版本」。優先用已抽取的客觀事實補回真正缺少的物件。
+    if (!manual.action && /(?:補上缺少的版本|補上缺少的版本後上傳更新版本)/u.test(action)) {
+      const missingObject = String(fact || '').match(/(?:仍缺少|目前缺少|缺少)([^；，。]{1,30})/u)?.[1]?.trim();
+      if (missingObject) {
+        action = /上傳/u.test(action) ? `補齊${missingObject}並上傳正確版本` : `補齊${missingObject}`;
+      }
+    }
     if (!manual.action && !safeActionLooksExecutable(action)) action = '';
 
     const substance = {
@@ -1950,7 +1961,7 @@
     }
     return {
       engine: mode,
-      engineVersion: '2.1.0',
+      engineVersion: '2.1.1',
       extraction: intent,
       substance: s,
       ...rewrite,
@@ -3663,21 +3674,44 @@ function renderLiveExtraction(extraction) {
   latestLiveExtraction = extraction || null;
   const summary = $('liveExtractionSummary'), confidence = $('liveExtractionConfidence');
   if (!summary || !confidence) return;
+
+  // 不使用 innerHTML 字串插值；改用 DOM API，避免未定義的轉義輔助函式造成流程中斷，
+  // 同時降低 XSS 與依賴遺漏風險。
+  summary.replaceChildren();
   if (!extraction || extraction.needsInput) {
-    confidence.className = 'live-confidence neutral'; confidence.textContent = extraction ? '資訊不足' : '等待輸入';
-    summary.textContent = extraction?.notice || '輸入原始訊息後，系統會自動把可用工作內容同步到下一區。'; return;
+    confidence.className = 'live-confidence neutral';
+    confidence.textContent = extraction ? '資訊不足' : '等待輸入';
+    summary.textContent = extraction?.notice || '輸入原始訊息後，系統會自動把可用工作內容同步到下一區。';
+    return;
   }
-  const labels = {topic:'主題',fact:'事實',action:'行動',deadline:'期限',reason:'原因'};
-  const chips = [];
+
+  const labels = { topic:'主題', fact:'事實', action:'行動', deadline:'期限', reason:'原因' };
+  let rendered = 0;
   for (const key of ['topic','fact','action','deadline','reason']) {
-    const value = String(extraction.substance?.[key] || '').trim(); if (!value) continue;
-    chips.push(`<button type="button" class="live-extraction-chip" data-jump-field="${key}"><strong>${labels[key]}</strong><span>${escapeHtml(value.slice(0,100))}</span></button>`);
+    const value = String(extraction.substance?.[key] || '').trim();
+    if (!value) continue;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'live-extraction-chip';
+    button.dataset.jumpField = key;
+    const strong = document.createElement('strong');
+    strong.textContent = labels[key];
+    const span = document.createElement('span');
+    span.textContent = value.slice(0, 100);
+    button.append(strong, span);
+    button.addEventListener('click', () => {
+      const node = $(STRUCTURED_FIELD_IDS[key]);
+      node?.scrollIntoView({ behavior:'smooth', block:'center' });
+      node?.focus();
+    });
+    summary.appendChild(button);
+    rendered += 1;
   }
-  const confidenceLabels = { high:'高', medium:'中', low:'低', insufficient:'資訊不足' }; confidence.className = `live-confidence ${extraction.confidence || 'neutral'}`; confidence.textContent = `可信度：${confidenceLabels[extraction.confidence] || '未標示'}`;
-  summary.innerHTML = chips.join('') || escapeHtml(extraction.notice || '尚未抽到可用工作內容');
-  summary.querySelectorAll('[data-jump-field]').forEach(btn => btn.addEventListener('click', () => {
-    const node = $(STRUCTURED_FIELD_IDS[btn.dataset.jumpField]); node?.scrollIntoView({behavior:'smooth',block:'center'}); node?.focus();
-  }));
+
+  const confidenceLabels = { high:'高', medium:'中', low:'低', insufficient:'資訊不足' };
+  confidence.className = `live-confidence ${extraction.confidence || 'neutral'}`;
+  confidence.textContent = `可信度：${confidenceLabels[extraction.confidence] || '未標示'}`;
+  if (!rendered) summary.textContent = extraction.notice || '尚未抽到可用工作內容';
 }
 
 function applyLiveExtraction(extraction, { overwriteManual = false } = {}) {
@@ -3699,11 +3733,25 @@ function extractionOptions() {
 
 function refreshLiveExtraction({ overwriteManual = false } = {}) {
   const raw = $('sourceText').value.trim();
-  if (!raw || !$('autoExtractOption')?.checked || !INTENT_ENGINE) { if (!raw) renderLiveExtraction(null); return; }
-  const manual = overwriteManual ? { tone:$('toneSelect').value } : readManualOverrides();
-  const extraction = INTENT_ENGINE.extract(raw, manual, extractionOptions());
-  applyLiveExtraction(extraction, { overwriteManual });
-  renderExtractionStatus(extraction, '本機混合語言模型');
+  if (!raw || !INTENT_ENGINE) {
+    if (!raw) renderLiveExtraction(null);
+    return null;
+  }
+  try {
+    const manual = overwriteManual ? { tone:$('toneSelect').value } : readManualOverrides();
+    const extraction = INTENT_ENGINE.extract(raw, manual, extractionOptions());
+    applyLiveExtraction(extraction, { overwriteManual });
+    renderExtractionStatus(extraction, '本機混合語言模型');
+    return extraction;
+  } catch (error) {
+    console.error('即時工作意圖抽取失敗', error);
+    const status = $('extractionStatus');
+    if (status) {
+      status.textContent = `自動抽取暫時失敗：${error?.message || error}。仍可直接修正下方欄位後產生版本。`;
+      status.dataset.confidence = 'insufficient';
+    }
+    return null;
+  }
 }
 function scheduleLiveExtraction(delay = 420) { if (liveExtractionTimer) clearTimeout(liveExtractionTimer); liveExtractionTimer = setTimeout(() => refreshLiveExtraction(), delay); }
 function markFieldManual(key) { if (programmaticFieldUpdate) return; manualOverrideFields.add(key); setFieldOrigin(key,'manual',latestLiveExtraction?.evidence?.[key] || ''); }
@@ -3711,11 +3759,10 @@ function resetFieldToAuto(key) { manualOverrideFields.delete(key); refreshLiveEx
 
 async function handleAnalyze() {
   const raw = $('sourceText').value.trim();
-  const formSubstance = readSubstanceFromForm();
-  const manualSubstance = raw && $('autoExtractOption')?.checked ? readManualOverrides() : formSubstance;
+  let formSubstance = readSubstanceFromForm();
 
-  if (!raw && ![formSubstance.topic, formSubstance.fact, formSubstance.action, formSubstance.deadline, formSubstance.reason, formSubstance.basis].some(value => String(value || '').trim())) {
-    $('inputError').textContent = '請先貼上欲檢核的原始訊息，或填寫要傳達的實質工作內容。';
+  if (!raw) {
+    $('inputError').textContent = '請先在步驟一輸入原始訊息。步驟二只用來確認或修正由原始訊息抽出的工作內容，不能脫離原始訊息單獨產生。';
     $('inputError').hidden = false;
     $('sourceText').focus();
     return;
@@ -3723,7 +3770,7 @@ async function handleAnalyze() {
 
   $('inputError').hidden = true;
   $('analyzeButton').disabled = true;
-  $('analyzeButton').textContent = '正在抽取工作意圖並潤稿…';
+  $('analyzeButton').textContent = '正在確認抽取內容並產生版本…';
 
   const options = {
     audience: $('audienceSelect').value,
@@ -3738,71 +3785,67 @@ async function handleAnalyze() {
     randomSeed: createRandomSeed()
   };
 
-  let substance = manualSubstance;
-  let precomputedRewrite = null;
-  let extraction = null;
+  let extraction = latestLiveExtraction;
   let engineLabel = '本機混合語言模型';
 
   try {
-    if (raw && $('autoExtractOption')?.checked) {
-      let processed;
-      if (ENGINE_BRIDGE) {
-        processed = await ENGINE_BRIDGE.process({ raw, substance: manualSubstance, options });
-      } else if (INTENT_ENGINE) {
-        extraction = INTENT_ENGINE.extract(raw, manualSubstance, options);
-        substance = extraction.substance;
-        processed = { ...composeSafeMessage(substance, options), substance, extraction, engine: 'hybrid-local' };
-      }
-
-      if (processed) {
-        substance = processed.substance || substance;
-        extraction = processed.extraction || extraction;
-        engineLabel = processed.engine === 'hybrid-local'
-          ? '本機混合語言模型'
-          : processed.engine === 'javascript'
-            ? '本機 JavaScript'
-            : String(processed.engine || '本機混合語言模型');
-        applyExtractedSubstance(substance, manualSubstance, extraction);
-
-        // 第二階段只把已抽取且經本機風險／個資清理後的結構化內容交給潤稿器。
-        // Python/JS 都不直接拿原始句子當生成材料。
-        const rewriteSubstance = sanitizeSubstance(substance, options).substance;
-        const rewriteOptions = {
-          ...options,
-          safeCorpusScenarioId: extraction?.corpusSuggestion?.scenarioId || options.safeCorpusScenarioId || ''
-        };
-        let rewritten = processed;
-        if (ENGINE_BRIDGE) {
-          rewritten = await ENGINE_BRIDGE.process({ raw: '', substance: rewriteSubstance, options: rewriteOptions });
-        } else {
-          rewritten = { ...composeSafeMessage(rewriteSubstance, rewriteOptions), engine: 'hybrid-local' };
-        }
-        precomputedRewrite = {
-          text: rewritten.text || '', copyable: Boolean(rewritten.copyable), notice: rewritten.notice || processed.notice || '',
-          style: rewritten.style || options.rewriteStyle, qualityScore: rewritten.qualityScore || 0,
-          variants: rewritten.variants || {}, quality: rewritten.quality || {},
-          coverage: rewritten.coverage || {}, variantCoverage: rewritten.variantCoverage || {}
-        };
-      }
+    // 按下產生時強制以「現在的原始訊息＋現在的人工修正」重跑一次抽取。
+    // 這一步消除 debounce 尚未執行、語音剛結束、或欄位仍是舊抽取結果的競態。
+    if (raw && INTENT_ENGINE) {
+      const manualOverrides = readManualOverrides();
+      extraction = INTENT_ENGINE.extract(raw, manualOverrides, options);
+      applyLiveExtraction(extraction);
+      renderExtractionStatus(extraction, engineLabel);
     }
 
-    const result = analyzeMessage(raw, substance, {
+    // 這裡才讀取表單：現在的值已是「原始訊息自動抽取＋使用者人工修正」的最終確認版。
+    // 後續風險檢核與潤稿都只使用這份確認內容；原始訊息仍完整用於風險掃描與內容來源追溯。
+    formSubstance = readSubstanceFromForm();
+    const sanitizedForRewrite = sanitizeSubstance(formSubstance, options).substance;
+    const rewriteOptions = {
+      ...options,
+      safeCorpusScenarioId: extraction?.corpusSuggestion?.scenarioId || options.safeCorpusScenarioId || ''
+    };
+
+    let rewritten;
+    if (ENGINE_BRIDGE) {
+      rewritten = await ENGINE_BRIDGE.process({ raw: '', substance: sanitizedForRewrite, options: rewriteOptions });
+      engineLabel = rewritten?.engine === 'javascript' ? '本機 JavaScript' : '本機混合語言模型';
+    } else {
+      rewritten = { ...composeSafeMessage(sanitizedForRewrite, rewriteOptions), engine: 'hybrid-local' };
+    }
+
+    const precomputedRewrite = {
+      text: rewritten?.text || '',
+      copyable: Boolean(rewritten?.copyable),
+      notice: rewritten?.notice || '已依確認後的工作內容重新生成訊息。',
+      style: rewritten?.style || options.rewriteStyle,
+      qualityScore: rewritten?.qualityScore || 0,
+      variants: rewritten?.variants || {},
+      quality: rewritten?.quality || {},
+      coverage: rewritten?.coverage || {},
+      variantCoverage: rewritten?.variantCoverage || {}
+    };
+
+    const result = analyzeMessage(raw, formSubstance, {
       ...options,
       precomputedRewrite,
       sourceForCopyGuard: raw
     });
     result.extraction = extraction;
     result.engineLabel = engineLabel;
-    applySanitizedSubstanceToForm(result.sanitizedSubstance || substance);
+
+    // 將去責罵化／事實化後的確認內容回寫，讓使用者看到實際拿去生成的資料，而不是隱藏轉換。
+    applySanitizedSubstanceToForm(result.sanitizedSubstance || formSubstance);
     renderExtractionStatus(extraction, engineLabel, result);
     renderResult(result);
   } catch (error) {
     console.error(error);
-    $('inputError').textContent = `潤稿引擎執行失敗：${error?.message || error}。請重新整理頁面後再試。`;
+    $('inputError').textContent = `潤稿引擎執行失敗：${error?.message || error}。這是程式錯誤，不會把失敗內容當成結果；請保留下方抽取欄位並再試一次。`;
     $('inputError').hidden = false;
   } finally {
     $('analyzeButton').disabled = false;
-    $('analyzeButton').textContent = '檢核並產生可複製版本';
+    $('analyzeButton').textContent = '確認抽取結果並產生可複製版本';
   }
 }
 
@@ -4074,7 +4117,7 @@ function renderRewriteVariantControls(result) {
   }
   if ($('variantHint')) {
     $('variantHint').textContent = result.copyable
-      ? '三種版本都只使用「實質工作內容」；切換不會帶入左側原始訊息。'
+      ? '三種版本都來自步驟一原始訊息，並以步驟二確認後的工作內容重新生成；不直接照抄原句。'
       : '工作內容尚未通過檢核，因此不提供可複製版本。';
   }
 }
@@ -4650,7 +4693,6 @@ function bindEvents() {
   document.querySelectorAll('[data-reset-auto]').forEach(button=>button.addEventListener('click',()=>resetFieldToAuto(button.dataset.resetAuto)));
   $('reextractButton')?.addEventListener('click',()=>refreshLiveExtraction());
   $('resetAutoExtractionButton')?.addEventListener('click',()=>refreshLiveExtraction({overwriteManual:true}));
-  $('autoExtractOption')?.addEventListener('change',()=>{if($('autoExtractOption').checked)refreshLiveExtraction();});
   $('jumpToStructuredButton')?.addEventListener('click',()=>{$('substanceTitle')?.scrollIntoView({behavior:'smooth',block:'start'});$('topicText')?.focus();});
   $('findingFilterSelect')?.addEventListener('change',event=>{findingFilter=event.target.value||'all';findingPage=1;renderFindingPage();});
   $('findingPrevButton')?.addEventListener('click',()=>{findingPage=Math.max(1,findingPage-1);renderFindingPage();});
@@ -4707,7 +4749,6 @@ function loadExample() {
   $('toneSelect').value = 'directive';
   $('rewriteStyleSelect').value = 'natural';
   $('includeBasisOption').checked = false;
-  if ($('autoExtractOption')) $('autoExtractOption').checked = true;
   $('sourceText').value = '你到底有沒有腦？附件二又少了，版本日期也跟昨天會議講的不一樣。今天下午 5 時前給我補齊、上傳正確版本，不然你就不用來了。';
   $('topicText').value = '';
   $('factText').value = '';
@@ -4740,7 +4781,6 @@ function clearAll() {
   if ($('regenerateButton')) $('regenerateButton').disabled = false;
   $('rewriteStyleSelect').value = 'natural';
   $('includeBasisOption').checked = false;
-  if ($('autoExtractOption')) $('autoExtractOption').checked = true;
   if ($('extractionStatus')) { $('extractionStatus').textContent = '尚未抽取。'; $('extractionStatus').dataset.confidence = ''; }
   renderLiveExtraction(null); for(const key of ['topic','fact','action','deadline','reason'])setFieldOrigin(key,'neutral',''); setFieldOrigin('basis','manual',''); if($('findingFilterSelect'))$('findingFilterSelect').value='all';
   resetPresetControls();
