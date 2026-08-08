@@ -1,4 +1,4 @@
-/* Respectful Message Guard 2.1.1 - consolidated production runtime */
+/* Respectful Message Guard 2.2.0 - consolidated production runtime */
 /* Section 1: structured rewrite engine */
 'use strict';
 
@@ -1124,7 +1124,7 @@
     if (!corePresent) {
       return {
         text: '', copyable: false,
-        notice: '尚未從原始訊息抽出足夠的工作內容。請回到原始訊息補充實際工作事項，或在步驟二修正抽取結果。',
+        notice: '尚未從原始訊息抽出足夠的工作內容。請補充實際工作事項；若只有抽取不準，也可以展開「確認／修正抽取結果」調整。',
         style,
         qualityScore: 0,
         variants: {},
@@ -1169,8 +1169,8 @@
       text: selected,
       copyable: Boolean(selected),
       notice: options.includeBasis
-        ? `已使用「${styleLabel}」潤稿；以步驟一原始訊息抽取、並經步驟二確認後的工作內容生成。職務依據依你的設定納入文字；不直接照抄原始句子。`
-        : `已使用「${styleLabel}」潤稿；以步驟一原始訊息抽取、並經步驟二確認後的工作內容生成。職務依據預設只供合理性檢核；不直接照抄原始句子。`,
+        ? `已使用「${styleLabel}」潤稿；工作內容由原始訊息自動抽取，若有人工修正則以修正後內容生成。職務依據依你的設定納入文字；不直接照抄原始句子。`
+        : `已使用「${styleLabel}」潤稿；工作內容由原始訊息自動抽取，若有人工修正則以修正後內容生成。職務依據預設只供合理性檢核；不直接照抄原始句子。`,
       style,
       qualityScore: quality[style] || 0,
       variants,
@@ -1961,7 +1961,7 @@
     }
     return {
       engine: mode,
-      engineVersion: '2.1.1',
+      engineVersion: '2.2.0',
       extraction: intent,
       substance: s,
       ...rewrite,
@@ -3107,7 +3107,7 @@ function neutralizeTopicSemantics(text) {
   if (SCHEDULE_TERMS.test(full)) value = '排班';
   else if (FINANCE_TERMS.test(full)) value = /核銷/u.test(full) ? '核銷' : /請款/u.test(full) ? '請款' : '核銷與請款';
   else {
-    const doc = full.match(/(?:報告|報表|簡報|附件|公文|文件|表單|紀錄|企劃|計畫書)/u);
+    const doc = full.match(/(?:報告|報表|簡報|附件|版本|公文|文件|表單|紀錄|企劃|計畫書)/u);
     if (doc) value = doc[0];
     else if (SYSTEM_TERMS.test(full)) value = /網站/u.test(full) ? '網站' : /程式/u.test(full) ? '程式' : '系統';
   }
@@ -3754,23 +3754,43 @@ function refreshLiveExtraction({ overwriteManual = false } = {}) {
   }
 }
 function scheduleLiveExtraction(delay = 420) { if (liveExtractionTimer) clearTimeout(liveExtractionTimer); liveExtractionTimer = setTimeout(() => refreshLiveExtraction(), delay); }
-function markFieldManual(key) { if (programmaticFieldUpdate) return; manualOverrideFields.add(key); setFieldOrigin(key,'manual',latestLiveExtraction?.evidence?.[key] || ''); }
+function markFieldManual(key) { if (programmaticFieldUpdate) return; manualOverrideFields.add(key); setFieldOrigin(key,'manual',latestLiveExtraction?.evidence?.[key] || ''); const note=$('reviewDirtyNotice'); if(note && lastAnalysisResult) note.hidden=false; }
 function resetFieldToAuto(key) { manualOverrideFields.delete(key); refreshLiveExtraction(); $(STRUCTURED_FIELD_IDS[key])?.focus(); }
+
+function openExtractionEditor(focusFirst = true) {
+  const editor = $('extractionEditor');
+  if (editor) editor.open = true;
+  const target = $('extractionEditor') || $('topicText');
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (focusFirst) setTimeout(() => $('topicText')?.focus(), 120);
+}
+
+function setAnalyzeBusy(busy) {
+  const primary = $('analyzeButton');
+  const apply = $('applyReviewButton');
+  if (primary) {
+    primary.disabled = busy;
+    primary.textContent = busy ? '正在產生…' : '直接檢核並產生';
+  }
+  if (apply) {
+    apply.disabled = busy;
+    apply.textContent = busy ? '正在更新…' : '套用修正並更新結果';
+  }
+}
 
 async function handleAnalyze() {
   const raw = $('sourceText').value.trim();
   let formSubstance = readSubstanceFromForm();
 
   if (!raw) {
-    $('inputError').textContent = '請先在步驟一輸入原始訊息。步驟二只用來確認或修正由原始訊息抽出的工作內容，不能脫離原始訊息單獨產生。';
+    $('inputError').textContent = '請先貼上原始訊息。系統會自動抽取並直接產生；需要時再修正抽取結果。';
     $('inputError').hidden = false;
     $('sourceText').focus();
     return;
   }
 
   $('inputError').hidden = true;
-  $('analyzeButton').disabled = true;
-  $('analyzeButton').textContent = '正在確認抽取內容並產生版本…';
+  setAnalyzeBusy(true);
 
   const options = {
     audience: $('audienceSelect').value,
@@ -3844,8 +3864,7 @@ async function handleAnalyze() {
     $('inputError').textContent = `潤稿引擎執行失敗：${error?.message || error}。這是程式錯誤，不會把失敗內容當成結果；請保留下方抽取欄位並再試一次。`;
     $('inputError').hidden = false;
   } finally {
-    $('analyzeButton').disabled = false;
-    $('analyzeButton').textContent = '確認抽取結果並產生可複製版本';
+    setAnalyzeBusy(false);
   }
 }
 
@@ -3894,7 +3913,7 @@ function renderExtractionStatus(extraction, engineLabel, result = null) {
   const confidenceLabels = { high:'高', medium:'中', low:'低', insufficient:'資訊不足' };
   target.textContent = extraction.needsInput
     ? `${engineLabel}：原始訊息沒有足夠的可執行工作內容，未從辱罵或威脅自行捏造要求。請補充實際工作事項。${audienceHint}`
-    : `${engineLabel}：已抽取${fields.length ? `「${fields.join('、')}」` : '工作意圖'}${audienceHint}；可信度：${confidenceLabels[extraction.confidence] || '未標示'}${normalizedNote}。下方欄位就是這次抽取結果；可直接人工修正，人工修改後會保留。`;
+    : `${engineLabel}：已抽取${fields.length ? `「${fields.join('、')}」` : '工作意圖'}${audienceHint}；可信度：${confidenceLabels[extraction.confidence] || '未標示'}${normalizedNote}。抽取結果已準備好；你可以直接產生，或打開編輯區修正後再更新結果。`;
 }
 
 function renderFeedbackStats() {
@@ -4033,6 +4052,7 @@ function importFeedbackFile(file) {
 
 function renderResult(result) {
   lastAnalysisResult = result;
+  if ($('reviewDirtyNotice')) $('reviewDirtyNotice').hidden = true;
   activeRewriteVariant = result.rewriteStyle || 'natural';
   $('emptyState').hidden = true;
   $('resultContent').hidden = false;
@@ -4117,7 +4137,7 @@ function renderRewriteVariantControls(result) {
   }
   if ($('variantHint')) {
     $('variantHint').textContent = result.copyable
-      ? '三種版本都來自步驟一原始訊息，並以步驟二確認後的工作內容重新生成；不直接照抄原句。'
+      ? '三種版本都來自同一份原始訊息；若你修正過抽取內容，會以修正後的工作重點重新生成。'
       : '工作內容尚未通過檢核，因此不提供可複製版本。';
   }
 }
@@ -4635,9 +4655,8 @@ function initialize() {
   initializeRewriteBridge();
   for(const key of ['topic','fact','action','deadline','reason']) setFieldOrigin(key,'neutral',''); setFieldOrigin('basis','manual',''); renderLiveExtraction(null);
 
-  if (safeSessionGet(INTRO_SESSION_KEY) === '1') {
-    enterApplication(false);
-  }
+  // 產品主流程直接可用；使用說明改為按需開啟，不再阻擋工作。
+  enterApplication(false);
 }
 
 function initializeRewriteBridge() {
@@ -4681,6 +4700,9 @@ function bindEvents() {
   $('sourceText').addEventListener('paste', handlePasteInspection);
   $('loadExampleButton').addEventListener('click', loadExample);
   $('analyzeButton').addEventListener('click', handleAnalyze);
+  $('applyReviewButton')?.addEventListener('click', handleAnalyze);
+  $('reviewExtractionButton')?.addEventListener('click', () => openExtractionEditor(true));
+  $('editExtractionFromResultButton')?.addEventListener('click', () => openExtractionEditor(true));
   $('clearButton').addEventListener('click', clearAll);
   $('copyButton').addEventListener('click', () => copyText($('safeText').value, '已複製建議版本。'));
   $('regenerateButton')?.addEventListener('click', handleAnalyze);
@@ -4693,7 +4715,7 @@ function bindEvents() {
   document.querySelectorAll('[data-reset-auto]').forEach(button=>button.addEventListener('click',()=>resetFieldToAuto(button.dataset.resetAuto)));
   $('reextractButton')?.addEventListener('click',()=>refreshLiveExtraction());
   $('resetAutoExtractionButton')?.addEventListener('click',()=>refreshLiveExtraction({overwriteManual:true}));
-  $('jumpToStructuredButton')?.addEventListener('click',()=>{$('substanceTitle')?.scrollIntoView({behavior:'smooth',block:'start'});$('topicText')?.focus();});
+  $('jumpToStructuredButton')?.addEventListener('click',()=>openExtractionEditor(true));
   $('findingFilterSelect')?.addEventListener('change',event=>{findingFilter=event.target.value||'all';findingPage=1;renderFindingPage();});
   $('findingPrevButton')?.addEventListener('click',()=>{findingPage=Math.max(1,findingPage-1);renderFindingPage();});
   $('findingNextButton')?.addEventListener('click',()=>{findingPage+=1;renderFindingPage();});
@@ -4759,6 +4781,7 @@ function loadExample() {
   resetPresetControls();
   if ($('extractionStatus')) $('extractionStatus').textContent = '示例已載入；按下檢核後會自動抽取工作意圖。';
   updateCharCount();
+  refreshLiveExtraction({ overwriteManual: true });
   $('sourceText').focus();
 }
 
@@ -4784,6 +4807,8 @@ function clearAll() {
   if ($('extractionStatus')) { $('extractionStatus').textContent = '尚未抽取。'; $('extractionStatus').dataset.confidence = ''; }
   renderLiveExtraction(null); for(const key of ['topic','fact','action','deadline','reason'])setFieldOrigin(key,'neutral',''); setFieldOrigin('basis','manual',''); if($('findingFilterSelect'))$('findingFilterSelect').value='all';
   resetPresetControls();
+  if ($('extractionEditor')) $('extractionEditor').open = false;
+  if ($('reviewDirtyNotice')) $('reviewDirtyNotice').hidden = true;
   clipboardImageDetected = false;
   $('pasteNotice').hidden = true;
   updateCharCount();
