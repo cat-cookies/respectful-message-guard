@@ -11,7 +11,7 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any, List
 
-VERSION = "1.9.0"
+VERSION = "1.10.0"
 
 
 
@@ -74,10 +74,13 @@ EMOTION_PREFIX = re.compile(r"^(?:你到底|到底在|你是在|你是有|有沒
 POLITE_PREFIX = re.compile(r"^(?:麻煩|煩請|拜託|請|務必|給我|現在|立刻|馬上|趕快|趕緊|記得|需要|要)\s*")
 
 OBJECT_TERMS = [
-    "會議紀錄","排班表","附件一","附件二","附件三","報告","報表","附件","檔案","文件","資料","簡報","版本","紀錄","病歷","表單","排班","名單","清單","合約","契約","企劃","計畫","專案","程式","網站","頁面","功能","需求","測試","結果","作業","工作","信件","訊息","申請","公文","預算","發票","收據","照片","圖片","表格","時程","進度"
+    "核銷資料","請款資料","會議紀錄","排班表","附件一","附件二","附件三","憑證","核銷","請款",
+    "報告","報表","附件","檔案","文件","資料","簡報","版本","紀錄","病歷","表單","排班","名單","清單",
+    "合約","契約","企劃","計畫","專案","程式","網站","頁面","功能","需求","測試","結果","作業","工作",
+    "信件","訊息","申請","公文","預算","發票","收據","照片","圖片","表格","時程","進度"
 ]
-FACT_MARKERS = re.compile(r"(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|未完成|沒完成|未收到|沒收到|尚未|進度|版本|結果|狀況|情況)")
-ACTION_MARKERS = re.compile(r"(?:請|麻煩|煩請|務必|需要|要|給我|幫我|協助|記得|完成|補|改|修|重做|回覆|回信|上傳|提供|確認|處理|提交|繳交|整理|說明|聯絡|排班|停止|不要再)")
+FACT_MARKERS = re.compile(r"(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|失敗|退件|沒過|未過|未完成|沒完成|未收到|沒收到|尚未|進度|版本|結果|狀況|情況)")
+ACTION_MARKERS = re.compile(r"(?:請|麻煩|煩請|務必|需要|要|給我|幫我|協助|記得|完成|補|改|修|重做|回覆|回信|上傳|提供|確認|校對|核對|查核|處理|提交|繳交|整理|說明|聯絡|排班|重排|調整|安排|停止|不要再)")
 REASON_MARKERS = re.compile(r"(?:因為|由於|為了|避免|以免|以利|以便|影響|需要於|需於|供後續|後續要|才能)")
 EMOTIONAL_META = re.compile(r"(?:到底要講幾次|到底講幾次|要講幾次|講幾次才懂|到底懂不懂|到底會不會|有沒有搞錯|搞什麼|是在搞什麼)")
 
@@ -97,20 +100,19 @@ def clean_clause(text: str) -> str:
     s = POWER_THREAT.sub("", s)
     s = EMOTION_PREFIX.sub("", s)
     s = EMOTIONAL_META.sub("", s)
+    s = re.sub(r"(?:到底在幹嘛|在幹嘛)", "", s)
     s = re.sub(r"(?:你|妳)?\s*(?:到底)?\s*(?:是|是不是)?\s*(?:白癡|智障|腦殘|廢物|垃圾|低能|沒腦|有沒有腦|看不懂人話|聽不懂人話)(?:嗎|嘛|是不是)?", "", s)
     s = re.sub(r"^(?:你|妳)\s*(?:到底)?\s*", "", s)
     for term in TOXIC_TERMS:
         s = s.replace(term, "")
+    s = re.sub(r"(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|惡搞|搞砸|搞爛|雷包|豬隊友|拖油瓶|狗屁|鬼東西)", "", s)
     s = re.sub(r"[~～%％]{2,}", " ", s)
     s = re.sub(r"\s+", " ", s)
     return s.strip(" ，。；：、！？\t\n")
 
 
 def split_clauses(raw: str) -> List[str]:
-    first = re.split(r"[。！？!?；;\n]+|，(?=(?:因為|由於|為了|避免|以免|以利|以便|今天|今日|明天|明日|後天|本週|這週|下週|上午|中午|下午|晚上|晚間|早上|凌晨|下班|現在|目前|請|麻煩|給我|務必|需要|要))", normalize(raw))
-    parts = []
-    for part in first:
-        parts.extend(re.split(r"，(?=[^，]{0,28}(?:還沒|尚未|沒有收到|少了|缺了|又錯|不一致|未完成|沒完成))", part))
+    parts = re.split(r"[。！？!?；;\n，,]+", normalize(raw))
     return [x for x in (clean_clause(p) for p in parts) if x]
 
 
@@ -147,12 +149,14 @@ def canonical_action(clause: str, topic: str = "") -> str:
     obj = topic_obj if action_obj == "版本" and topic_obj else (action_obj or topic_obj)
     has_upload = "上傳" in text
     rules = [
+        (r"重排(?:班)?|重新排班|調整班表|重排班表", lambda: "重新確認並調整排班"),
         (r"重新?做|全部重做|重做", lambda: (f"重新檢查並修正{obj}後上傳更新版本" if has_upload else f"重新檢查並修正{obj}") if obj else "重新檢查並修正相關內容"),
         (r"補齊|補上|補件|補資料", lambda: (f"補上缺少的{obj}後上傳更新版本" if has_upload else f"補上缺少的{obj}") if obj else "補上缺少的內容"),
         (r"改掉|改好|改完|修好|修正|修改", lambda: (f"檢查並修正{obj}後上傳更新版本" if has_upload else f"檢查並修正{obj}") if obj else "檢查並修正相關內容"),
         (r"回我|回覆我|回覆|回信", lambda: "回覆目前處理情形"),
         (r"交出來|交給我|繳交|提交", lambda: f"提交{obj}的完成版本" if obj else "提交完成版本"),
         (r"上傳", lambda: f"上傳{obj}的更新版本" if obj and obj != "版本" else "上傳更新版本"),
+        (r"校對|核對|查核", lambda: f"重新檢查並確認{obj}內容" if obj else "重新檢查並確認相關內容"),
         (r"確認", lambda: f"確認{obj}內容" if obj else "確認相關內容"),
         (r"處理", lambda: "完成相關處理"),
         (r"整理", lambda: f"整理{obj}" if obj else "整理相關資料"),
@@ -168,6 +172,73 @@ def canonical_action(clause: str, topic: str = "") -> str:
     text = re.sub(r"(?:一下|給我|好不好)$", "", text).strip()
     return text[:70].rstrip("，；：、 ")
 
+
+
+SUBJECTIVE_WORK_LABEL_RX = re.compile(r"(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|惡搞|搞砸|搞爛|亂七八糟|一團亂|爛透|爛到不行|很爛|超爛|有夠爛|垃圾|狗屁|鬼東西|雷包|豬隊友|拖油瓶)")
+PERSON_ATTACK_RX = re.compile(r"(?:白癡|智障|腦殘|低能|廢物|沒腦|腦袋有洞|腦子進水|沒帶腦|蠢蛋|笨蛋|弱智|神經病)")
+FINANCE_RX = re.compile(r"(?:核銷|請款|報帳|報銷|發票|收據|憑證|費用|帳務|會計)")
+SCHEDULE_RX = re.compile(r"(?:排班|班表|班次|輪班|值班|調班|缺班|出勤|人力配置|時段衝突)")
+DOCUMENT_RX = re.compile(r"(?:報告|報表|文件|簡報|附件|版本|表單|紀錄|公文|企劃|計畫書)")
+
+def concrete_topic_from_text(text: str) -> str:
+    value = normalize(text)
+    if not value: return ""
+    if FINANCE_RX.search(value):
+        return "核銷" if "核銷" in value else ("請款" if "請款" in value else "核銷與請款")
+    if SCHEDULE_RX.search(value): return "排班"
+    m = re.search(r"(?:報告|報表|簡報|附件|公文|文件|表單|紀錄|企劃|計畫書)", value)
+    if m: return m.group(0)
+    if re.search(r"(?:網站|程式|系統|功能|頁面|當機|閃退)", value):
+        return "網站" if "網站" in value else ("程式" if "程式" in value else "系統")
+    return ""
+
+def neutralize_fact_semantics(text: str, topic: str = "") -> str:
+    value = normalize(text)
+    if not value: return ""
+    had = bool(SUBJECTIVE_WORK_LABEL_RX.search(value) or PERSON_ATTACK_RX.search(value))
+    value = re.sub(r"^(?:(?:你|妳|他|她|這|那)?\s*(?:在|又|一直|根本)?\s*)?(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|惡搞|搞砸|搞爛)(?:了)?\s*[，,；;：:]?\s*(?:(?:結果|所以)?\s*(?:導致|造成|害得|弄得)\s*)?", "", value)
+    value = re.sub(r"^(?:目前|現階段|現在)?\s*(?:結果|所以)?\s*(?:導致|造成|害得|弄得)\s*", lambda m: "目前" if re.match(r"^(?:目前|現階段|現在)", m.group(0)) else "", value)
+    value = SUBJECTIVE_WORK_LABEL_RX.sub("", value)
+    value = PERSON_ATTACK_RX.sub("", value)
+    value = re.sub(r"(?:核銷|報帳)(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)", "核銷作業未能完成", value)
+    value = re.sub(r"請款(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)", "請款作業未能完成", value)
+    value = value.strip(" ，。；：、！？")
+    if not value and had and topic:
+        if SCHEDULE_RX.search(topic): value = "目前排班安排需要重新確認"
+        elif FINANCE_RX.search(topic): value = "目前核銷或請款內容需要重新確認"
+        else: value = f"目前{topic}內容需要重新確認"
+    if value.startswith(("核銷作業","請款作業")): value = "目前" + value
+    return normalize(value)
+
+def neutralize_action_semantics(text: str, topic: str = "", fact: str = "", reason: str = "") -> str:
+    value = normalize(text)
+    if not value: return ""
+    value = PERSON_ATTACK_RX.sub("", SUBJECTIVE_WORK_LABEL_RX.sub("", value))
+    value = re.sub(r"^(?:給我|馬上|立刻|現在就|趕快|趕緊|務必給我)\s*", "", value)
+    value = re.sub(r"(?:不然|否則|要不然).*$", "", value)
+    value = re.sub(r"^(?:請|麻煩|煩請)\s*", "", value).strip()
+    context = f"{fact} {topic} {reason}"
+    concrete = concrete_topic_from_text(context)
+    if re.fullmatch(r"(?:校對|核對|檢查|確認)(?:一下)?", value):
+        if FINANCE_RX.search(context): return "重新核對核銷資料與相關憑證"
+        if SCHEDULE_RX.search(context): return "重新確認班表與班次安排"
+        if concrete: return f"重新檢查並確認{concrete}內容"
+        return "重新檢查並確認相關內容"
+    if re.fullmatch(r"(?:處理|弄好|弄完|改好)(?:一下)?", value):
+        return f"確認{concrete}目前狀況並完成必要處理" if concrete else "確認目前狀況並完成必要處理"
+    return normalize(value)
+
+def reconcile_structured_meaning(substance: Dict[str, Any]) -> Dict[str, Any]:
+    s = dict(substance)
+    selected = normalize(s.get("topic", ""))
+    details = normalize(" ".join(str(s.get(k, "")) for k in ("fact","action","reason")))
+    inferred = concrete_topic_from_text(details)
+    if not selected or not details or not inferred: return s
+    ss, sf, sd = bool(SCHEDULE_RX.search(selected)), bool(FINANCE_RX.search(selected)), bool(DOCUMENT_RX.search(selected))
+    ds, df, dd = bool(SCHEDULE_RX.search(details)), bool(FINANCE_RX.search(details)), bool(DOCUMENT_RX.search(details))
+    mismatch = (ss and not ds and (df or dd)) or (sf and not df and (ds or dd)) or (sd and not dd and (ds or df))
+    if mismatch: s["topic"] = inferred
+    return s
 
 def canonical_fact(clause: str) -> str:
     text = clean_clause(clause)
@@ -198,6 +269,9 @@ def canonical_fact(clause: str) -> str:
     text = re.sub(r"版本日期跟(.+?)講的不一樣", r"版本日期與\1確認內容不一致", text)
     text = text.replace("還沒", "尚未").replace("沒有收到", "尚未收到").replace("亂七八糟", "內容需要重新確認").replace("做成這樣", "版本需要修正")
     text = re.sub(r"^現在才發現", "目前發現", text)
+    text = re.sub(r"^(?:目前)?(?:結果|所以)?\s*(?:導致|造成|害得|弄得)\s*", "", text)
+    text = re.sub(r"^(?:核銷|報帳)(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)$", "核銷作業未能完成", text)
+    text = re.sub(r"^請款(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)$", "請款作業未能完成", text)
     if text and not re.match(r"^(?:目前|現在|仍|尚|已|未|這次|本次)", text):
         text = "目前" + text
     return text[:110].rstrip("，；：、 ")
@@ -235,7 +309,7 @@ def safe_action_looks_executable(action: str) -> bool:
         return False
     if re.search(r"(?:滾|離職|開除|解僱|扣薪|扣獎金|扣考績|不續約|黑名單|封殺|閉嘴|去死|做不好|不配合就|否則)", value):
         return False
-    return bool(re.search(r"(?:確認|修正|補|回覆|說明|提交|上傳|整理|提供|完成|比對|更新|安排|提出|列出|停止|依|保留|通知|通報|處理|協調|核對|檢查|改用|移除)", value))
+    return bool(re.search(r"(?:確認|修正|補|回覆|說明|提交|上傳|整理|提供|完成|比對|更新|安排|提出|列出|停止|依|保留|通知|通報|處理|協調|調整|重排|排班|校對|查核|核對|檢查|改用|移除)", value))
 
 
 def scenario_evidence(raw: str, scenario: Dict[str, Any]) -> Dict[str, Any]:
@@ -259,7 +333,12 @@ def scenario_evidence(raw: str, scenario: Dict[str, Any]) -> Dict[str, Any]:
     # 這些情境的 safeAutofillAction=false，故只提高防護檢索，不會捏造命令。
     if scenario.get("sensitive") and hits:
         score += 2.4
-    return {"score": score, "hits": hits, "issueHits": issue_hits}
+    subjective_complaint = bool(re.search(r"(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|搞砸|搞爛|亂七八糟|很爛|超爛|爛透|垃圾|狗屁|鬼東西|雷包|豬隊友|拖油瓶)", text))
+    if not scenario.get("sensitive") and subjective_complaint and hits:
+        score += 1.8
+    if subjective_complaint and str(scenario.get("id", "")).startswith("doc_quality_"):
+        score += 2.2
+    return {"score": score, "hits": hits, "issueHits": issue_hits, "subjectiveComplaint": subjective_complaint}
 
 
 def retrieve_safe_scenario(raw: str, current: Dict[str, Any], random_seed: str = "") -> Dict[str, Any] | None:
@@ -274,7 +353,8 @@ def retrieve_safe_scenario(raw: str, current: Dict[str, Any], random_seed: str =
     score, _, _, sc, ev = ranked[0]
     current_action = normalize(current.get("action", ""))
     current_fact = normalize(current.get("fact", ""))
-    can_autofill = sc.get("safeAutofillAction") is not False and bool(ev["issueHits"])
+    has_issue_evidence = bool(ev["issueHits"]) or bool(ev.get("subjectiveComplaint"))
+    can_autofill = sc.get("safeAutofillAction") is not False and has_issue_evidence
     chosen_action = current_action if safe_action_looks_executable(current_action) else (weighted_list_choice(sc.get("actions"), random_seed, "action") if can_autofill else "")
     if sc.get("id") == "early_issue_disclosure" and re.search(r"(?:怕被罵|怕被念|不敢說|不敢講|怕講錯|怕說錯|被抓包|先講|先回報)", normalize(raw)) and can_autofill:
         chosen_action = weighted_list_choice(sc.get("actions"), random_seed, "disclosure-action")
@@ -283,7 +363,7 @@ def retrieve_safe_scenario(raw: str, current: Dict[str, Any], random_seed: str =
         "matchedKeywords": ev["hits"][:8], "sensitive": bool(sc.get("sensitive")), "guardrail": sc.get("guardrail", ""),
         "purpose": sc.get("purpose", "general"),
         "topic": normalize(current.get("topic", "")) or normalize(sc.get("topic", "")),
-        "fact": current_fact or (weighted_list_choice(sc.get("facts"), random_seed, "fact") if ev["issueHits"] else ""),
+        "fact": current_fact or (weighted_list_choice(sc.get("facts"), random_seed, "fact") if has_issue_evidence else ""),
         "action": chosen_action,
         "reason": normalize(current.get("reason", "")) or (weighted_list_choice(sc.get("reasons"), random_seed, "reason") if can_autofill else "")
     }
@@ -376,7 +456,15 @@ def rewrite_variant(s: Dict[str, Any], style: str, audience: str, purpose: str) 
         fact_text = f"關於{topic}"
 
     if action:
-        if style == "formal":
+        cond = re.match(r"^((?:如|若|如果)[^，。；]{1,90})[，,](.+)$", action)
+        if cond and not deadline:
+            tail = cond.group(2).strip()
+            if tail.startswith("先"):
+                tail = "請先" + tail[1:]
+            elif not tail.startswith("請"):
+                tail = "請" + tail
+            action_text = cond.group(1) + "，" + tail
+        elif style == "formal":
             action_text = f"請於{deadline}{action}" if deadline else f"請{action}"
         elif style == "concise":
             action_text = f"請在{deadline}{action}" if deadline else f"請{action}"
@@ -432,6 +520,10 @@ def _post_process_candidate(text: str, style: str, audience: str) -> str:
     value = re.sub(r"。{2,}", "。", value)
     value = value.replace("請請", "請").replace("請先先", "請先").replace("麻煩先先", "麻煩先").replace("麻煩請", "麻煩").replace("您您", "您")
     value = value.replace("請完成完成", "請完成").replace("請先完成完成", "請先完成").replace("主要是因為讓", "主要是為了讓").replace("主要是因為建立", "主要是為了建立").replace("因為讓", "為了讓").replace("因為建立", "為了建立")
+    value = re.sub(r"麻煩((?:如|若|如果)[^，。]{1,90})，", r"\1，麻煩", value)
+    value = re.sub(r"請先((?:如|若|如果)[^，。]{1,90})，(?:先)?", r"\1，請先", value)
+    value = re.sub(r"請((?:如|若|如果)[^，。]{1,90})，", r"\1，請", value)
+    value = value.replace("完成必要確認，並重新確認並", "完成確認後，再").replace("完成必要確認，並確認並", "完成確認後，再")
     value = value.replace("，，", "，")
     if audience in ("client", "student", "public") and style != "formal" and value and not value.startswith("您好"):
         value = "您好，" + value
@@ -462,6 +554,8 @@ def _score_candidate(text: str, style: str, tone: str = "directive") -> float:
     if please > 2: score -= (please-2)*8
     if text.count("麻煩") > 1: score -= (text.count("麻煩")-1)*6
     if re.search(r"(?:請請|請先先|麻煩先先|麻煩請|需要要|您您|，，|。。)", text): score -= 35
+    if re.search(r"^請[^。]{1,90}。(?:目前|現階段|現在|本次|這次)", text): score -= 14
+    if style == "natural" and re.search(r"^(?:目前|現階段|現在|本次|這次)[^。]{1,100}。請", text): score += 5
     if re.search(r"^關於[^。]{1,24}。請", text): score -= 18
     if len(set(x.strip("。！？!? ") for x in sentences)) < len(sentences): score -= 16
     return score
@@ -573,7 +667,13 @@ def process(payload: Dict[str, Any]) -> Dict[str, Any]:
     options = payload.get("options") or {}
     random_seed = str(options.get("randomSeed") or "default")
     extraction = extract_intent(raw, manual, random_seed)
-    substance = extraction["substance"]
+    substance = dict(extraction["substance"])
+    substance["fact"] = neutralize_fact_semantics(substance.get("fact", ""), substance.get("topic", ""))
+    substance["action"] = neutralize_action_semantics(substance.get("action", ""), substance.get("topic", ""), substance.get("fact", ""), substance.get("reason", ""))
+    substance["reason"] = normalize(PERSON_ATTACK_RX.sub("", SUBJECTIVE_WORK_LABEL_RX.sub("", substance.get("reason", ""))))
+    substance = reconcile_structured_meaning(substance)
+    extraction["substance"] = substance
+    extraction["needsInput"] = not bool(substance.get("action") or substance.get("fact"))
     styles = ("natural","concise","formal")
     audience = options.get("audience", "coworker")
     purpose = options.get("purpose", "general")

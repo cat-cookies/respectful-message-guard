@@ -1,4 +1,4 @@
-/* Respectful Message Guard 1.9.0 - consolidated production runtime */
+/* Respectful Message Guard 1.10.0 - consolidated production runtime */
 /* Section 1: structured rewrite engine */
 'use strict';
 
@@ -177,7 +177,13 @@
     const { you } = personWords(audience);
     const actionCore = rawAction;
     const followUp = actionCore.match(/^後續(?:再)?\s*(.+)$/u);
+    const conditional = actionCore.match(/^((?:如|若|如果)[^，。；]{1,90})[，,](.+)$/u);
     const thirdParty = /^(?:由|改由|交由|轉由|透過|經由)/u.test(actionCore);
+
+    if (conditional && !time) {
+      const tail = conditional[2].trim().replace(/^先/u, '請先').replace(/^(?!請)/u, '請');
+      return `${conditional[1]}，${tail}${/[。！？!?]$/u.test(tail) ? '' : '。'}`;
+    }
 
     if (style === 'formal') {
       if (followUp) {
@@ -583,7 +589,12 @@
       .replace(/主要是因為讓/g, '主要是為了讓')
       .replace(/主要是因為建立/g, '主要是為了建立')
       .replace(/因為讓/g, '為了讓')
-      .replace(/因為建立/g, '為了建立');
+      .replace(/因為建立/g, '為了建立')
+      .replace(/麻煩((?:如|若|如果)[^，。]{1,90})，/gu, '$1，麻煩')
+      .replace(/請先((?:如|若|如果)[^，。]{1,90})，(?:先)?/gu, '$1，請先')
+      .replace(/請((?:如|若|如果)[^，。]{1,90})，/gu, '$1，請')
+      .replace(/完成必要確認，並重新確認並/g, '完成確認後，再')
+      .replace(/完成必要確認，並確認並/g, '完成確認後，再');
 
     // 如果服務對象版本沒有任何問候，補一個最短問候即可；不在同事訊息強塞稱謂。
     if ((audience === 'client' || audience === 'student' || audience === 'public') && style !== 'formal' && value && !value.startsWith('您好')) {
@@ -624,6 +635,10 @@
     if (/相關原因|相關程序/u.test(text)) score -= 12;
     if (/。請[^。]+。請/u.test(text)) score -= 8;
     if (/，[，。]|。[,，]/u.test(text)) score -= 15;
+    // 有客觀狀況時，工作訊息通常先交代狀況再提出行動；避免生成
+    // 「請先做 X。現在其實發生 Y。」這種倒裝而顯得像機器拼句。
+    if (/^請[^。]{1,90}。(?:目前|現階段|現在|本次|這次)/u.test(text)) score -= 14;
+    if (style === 'natural' && /^(?:目前|現階段|現在|本次|這次)[^。]{1,100}。請/u.test(text)) score += 5;
 
     // 自然版若完全沒有「關於／上述／說明如下」等公文套語，給小幅獎勵。
     if (style === 'natural' && !/(?:上述|說明如下|茲|爰|依既定)/u.test(text)) score += 6;
@@ -827,12 +842,14 @@
   const POLITENESS_PREFIX = /^(?:麻煩|煩請|拜託|請|務必|給我|現在|立刻|馬上|趕快|趕緊|記得|需要|要)\s*/u;
 
   const ACTION_RULES = [
+    [/重排(?:班)?|重新排班|調整班表|重排班表/u, '重新確認並調整排班'],
     [/重新?做|全部重做|重做/u, '重新檢查並修正'],
     [/補齊|補上|補件|補資料/u, '補上缺少的內容'],
     [/改掉|改好|改完|修好|修正|修改/u, '檢查並修正'],
     [/回我|回覆我|回覆|回信/u, '回覆目前處理情形'],
     [/交出來|交給我|繳交|提交/u, '提交完成版本'],
     [/上傳/u, '上傳更新版本'],
+    [/(?:校對|核對|查核)/u, '重新檢查並確認'],
     [/確認/u, '確認相關內容'],
     [/處理/u, '完成相關處理'],
     [/整理/u, '整理相關資料'],
@@ -843,11 +860,11 @@
   ];
 
   const OBJECT_TERMS = [
-    '報告','報表','附件','附件一','附件二','附件三','檔案','文件','資料','簡報','版本','紀錄','會議紀錄','病歷','表單','排班表','排班','名單','清單','合約','契約','企劃','計畫','專案','程式','網站','頁面','功能','需求','測試','結果','作業','工作','信件','訊息','申請','公文','預算','發票','收據','照片','圖片','表格','時程','進度'
+    '核銷資料','請款資料','憑證','核銷','請款','報告','報表','附件','附件一','附件二','附件三','檔案','文件','資料','簡報','版本','紀錄','會議紀錄','病歷','表單','排班表','排班','名單','清單','合約','契約','企劃','計畫','專案','程式','網站','頁面','功能','需求','測試','結果','作業','工作','信件','訊息','申請','公文','預算','發票','收據','照片','圖片','表格','時程','進度'
   ];
 
-  const FACT_MARKERS = /(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|未完成|沒完成|未收到|沒收到|尚未|進度|版本|結果|狀況|情況)/u;
-  const ACTION_MARKERS = /(?:請|麻煩|煩請|務必|需要|要|給我|幫我|協助|記得|完成|補|改|修|重做|回覆|回信|上傳|提供|確認|處理|提交|繳交|整理|說明|聯絡|排班|停止|不要再)/u;
+  const FACT_MARKERS = /(?:目前|現在|仍|還|尚|已經|已|未|沒有|缺|少|錯|有誤|不一致|失敗|退件|沒過|未過|未完成|沒完成|未收到|沒收到|尚未|進度|版本|結果|狀況|情況)/u;
+  const ACTION_MARKERS = /(?:請|麻煩|煩請|務必|需要|要|給我|幫我|協助|記得|完成|補|改|修|重做|回覆|回信|上傳|提供|確認|處理|提交|繳交|整理|說明|聯絡|排班|重排|調整|安排|校對|核對|查核|停止|不要再)/u;
   const REASON_MARKERS = /(?:因為|由於|為了|避免|以免|以利|以便|影響|需要於|需於|供後續|後續要|才能)/u;
   const EMOTIONAL_META = /(?:到底要講幾次|到底講幾次|要講幾次|講幾次才懂|到底懂不懂|到底會不會|有沒有搞錯|搞什麼|是在搞什麼)/u;
 
@@ -870,8 +887,9 @@
       .replace(EMOTIONAL_META, '')
       .replace(/(?:你|妳)?\s*(?:到底)?\s*(?:是|是不是)?\s*(?:白癡|智障|腦殘|廢物|垃圾|低能|沒腦|有沒有腦|看不懂人話|聽不懂人話)(?:嗎|嘛|是不是)?/gu, '')
       .replace(/^(?:你|妳)\s*(?:到底)?\s*/u, '')
-      .replace(/(?:有沒有腦|會不會做事|看不懂人話|聽不懂人話|搞什麼|是在搞什麼|到底懂不懂|很難嗎|這麼簡單也不會)/gu, '')
+      .replace(/(?:有沒有腦|會不會做事|看不懂人話|聽不懂人話|搞什麼|是在搞什麼|到底懂不懂|到底在幹嘛|在幹嘛|很難嗎|這麼簡單也不會)/gu, '')
       .replace(/(?:垃圾|廢物|白癡|智障|腦殘|混蛋|王八蛋|賤人|婊子|幹你娘|幹妳娘|操你|滾蛋|去死)/gu, '')
+      .replace(/(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|惡搞|搞砸|搞爛|雷包|豬隊友|拖油瓶|狗屁|鬼東西)/gu, '')
       .replace(/[~～%％]{2,}/gu, ' ')
       .replace(/\s+/g, ' ')
       .replace(/^[，。；：、！？\s]+|[，。；：、！？\s]+$/gu, '')
@@ -880,8 +898,7 @@
 
   function splitClauses(raw) {
     return normalize(raw)
-      .split(/[。！？!?；;\n]+|，(?=(?:因為|由於|為了|避免|以免|以利|以便|今天|今日|明天|明日|後天|本週|這週|下週|上午|中午|下午|晚上|晚間|早上|凌晨|下班|現在|目前|請|麻煩|給我|務必|需要|要))/u)
-      .flatMap(part => part.split(/，(?=[^，]{0,28}(?:還沒|尚未|沒有收到|少了|缺了|又錯|不一致|未完成|沒完成))/u))
+      .split(/[。！？!?；;\n，,]+/u)
       .map(cleanClause).filter(Boolean).filter(x => !TOXIC_ONLY.test(x));
   }
 
@@ -925,6 +942,7 @@
       if (replacement === '重新檢查並修正' && object) return hasUpload ? `重新檢查並修正${object}後上傳更新版本` : `重新檢查並修正${object}`;
       if (replacement === '上傳更新版本' && object && object !== '版本') return `上傳${object}的更新版本`;
       if (replacement === '提交完成版本' && object) return `提交${object}的完成版本`;
+      if (replacement === '重新檢查並確認' && object) return `重新檢查並確認${object}內容`;
       if (replacement === '確認相關內容' && object) return `確認${object}內容`;
       if (replacement === '整理相關資料' && object) return `整理${object}`;
       return replacement;
@@ -965,7 +983,11 @@
       .replace(/沒有收到/u, '尚未收到')
       .replace(/亂七八糟/u, '內容需要重新確認')
       .replace(/做成這樣/u, '版本需要修正');
-    text = text.replace(/^現在才發現/u, '目前發現');
+    text = text
+      .replace(/^現在才發現/u, '目前發現')
+      .replace(/^(?:目前)?(?:結果|所以)?\s*(?:導致|造成|害得|弄得)\s*/u, '')
+      .replace(/^(?:核銷|報帳)(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)$/u, '核銷作業未能完成')
+      .replace(/^請款(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)$/u, '請款作業未能完成');
     if (!/^(?:目前|現在|仍|尚|已|未|這次|本次)/u.test(text)) text = `目前${text}`;
     if (text.length > 110) text = text.slice(0, 110).replace(/[，；：、\s]+$/u, '');
     return text;
@@ -1011,7 +1033,7 @@
     const value = normalize(action);
     if (!value) return false;
     if (/(?:滾|離職|開除|解僱|扣薪|扣獎金|扣考績|不續約|黑名單|封殺|閉嘴|去死|做不好|不配合就|否則)/u.test(value)) return false;
-    return /(?:確認|修正|補|回覆|說明|提交|上傳|整理|提供|完成|比對|更新|安排|提出|列出|停止|依|保留|通知|通報|處理|協調|核對|檢查|確認並|改用|移除)/u.test(value);
+    return /(?:確認|修正|補|回覆|說明|提交|上傳|整理|提供|完成|比對|更新|安排|提出|列出|停止|依|保留|通知|通報|處理|協調|調整|重排|排班|校對|查核|核對|檢查|確認並|改用|移除)/u.test(value);
   }
 
   function scenarioEvidence(raw, scenario) {
@@ -1032,7 +1054,10 @@
     // 敏感情境（加班、監督、隱私、歧視、人事處分等）即使只有一個明確關鍵詞，
     // 也應優先帶出防護情境；這些情境本身禁止自動補入高風險命令。
     if (scenario.sensitive && hits.length >= 1) score += 2.4;
-    return { score, hits, issueHits };
+    const subjectiveComplaint = /(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|搞砸|搞爛|亂七八糟|很爛|超爛|爛透|垃圾|狗屁|鬼東西|雷包|豬隊友|拖油瓶)/u.test(text);
+    if (!scenario.sensitive && subjectiveComplaint && hits.length >= 1) score += 1.8;
+    if (subjectiveComplaint && /^doc_quality_/u.test(String(scenario.id || ''))) score += 2.2;
+    return { score, hits, issueHits, subjectiveComplaint };
   }
 
   function intentSeedUnit(seedText) {
@@ -1071,7 +1096,8 @@
     const sc = best.scenario;
     const currentAction = normalize(current.action);
     const currentFact = normalize(current.fact);
-    const canAutofill = sc.safeAutofillAction !== false && best.issueHits.length > 0;
+    const hasIssueEvidence = best.issueHits.length > 0 || Boolean(best.subjectiveComplaint);
+    const canAutofill = sc.safeAutofillAction !== false && hasIssueEvidence;
     const suggestion = {
       scenarioId: sc.id,
       category: sc.category,
@@ -1081,7 +1107,7 @@
       guardrail: sc.guardrail || '',
       purpose: sc.purpose || 'general',
       topic: normalize(current.topic) || normalize(sc.topic),
-      fact: currentFact || (best.issueHits.length ? weightedScenarioChoice(sc.facts, randomSeed, 'fact') : ''),
+      fact: currentFact || (hasIssueEvidence ? weightedScenarioChoice(sc.facts, randomSeed, 'fact') : ''),
       action: safeActionLooksExecutable(currentAction) ? currentAction : (canAutofill ? weightedScenarioChoice(sc.actions, randomSeed, 'action') : ''),
       reason: normalize(current.reason) || (canAutofill ? weightedScenarioChoice(sc.reasons, randomSeed, 'reason') : '')
     };
@@ -1315,7 +1341,7 @@
       selected = variants[alternateStyle] || selected;
     }
     return {
-      engine: 'javascript', engineVersion: '1.9.0', extraction: intent, substance: s,
+      engine: 'javascript', engineVersion: '1.10.0', extraction: intent, substance: s,
       ...rewrite, text: intent.needsInput ? '' : selected,
       copyable: Boolean(!intent.needsInput && selected),
       notice: intent.needsInput ? intent.notice : `JavaScript 引擎已${intent.extractedFields.length ? '自動抽取並補全' : '依結構化內容'}後重新生成訊息；不會直接複製原句。`
@@ -1387,13 +1413,11 @@ const CORPUS = (() => {
 
 const REWRITE_ENGINE = (() => {
   if (typeof globalThis !== 'undefined' && globalThis.MESSAGE_REWRITE_ENGINE) return globalThis.MESSAGE_REWRITE_ENGINE;
-  if (typeof module !== 'undefined' && module.exports) return require('./rewrite-engine.js');
   throw new Error('離線潤稿引擎未載入。');
 })();
 
 const INTENT_ENGINE = (() => {
   if (typeof globalThis !== 'undefined' && globalThis.MESSAGE_INTENT_ENGINE) return globalThis.MESSAGE_INTENT_ENGINE;
-  if (typeof module !== 'undefined' && module.exports) return require('./intent-engine.js');
   return null;
 })();
 
@@ -1769,6 +1793,21 @@ const EXPERT_PREPARED = EXPERT_ENTRIES.map((entry, index) => ({
   grams2: makeNgrams(entry.text, 2),
   grams3: makeNgrams(entry.text, 3)
 }));
+function exactExpertKey(text) {
+  return normalizeText(text)
+    .toLowerCase()
+    .replace(/[^\p{Script=Han}a-z0-9]+/gu, '');
+}
+
+const EXPERT_EXACT_INDEX = (() => {
+  const map = new Map();
+  for (const item of EXPERT_PREPARED) {
+    const key = exactExpertKey(item.entry.text || '');
+    if (key && !map.has(key)) map.set(key, item);
+  }
+  return map;
+})();
+
 const EXPERT_BIGRAM_INDEX = (() => {
   const map = new Map();
   for (const item of EXPERT_PREPARED) {
@@ -1807,16 +1846,62 @@ function expertSimilarityScore(fragment, prepared) {
 
 function scanExpertCorpus(text, source = '原始訊息') {
   if (!EXPERT_PREPARED.length) return { findings: [], score: 0 };
-  const fragments = normalizeText(text)
-    .split(/(?<=[。！？!?；;\n])/u)
-    .map(x => x.trim())
-    .filter(x => compactExpertText(x).length >= 3);
   const findings = [];
   let score = 0;
   const usedEntryIds = new Set();
   const usedDomains = new Set();
 
+  const addFinding = (prepared, similarity, fragment) => {
+    if (!prepared?.entry) return false;
+    const entry = prepared.entry;
+    if (usedEntryIds.has(entry.id)) return false;
+    usedEntryIds.add(entry.id);
+    if (usedDomains.has(entry.domain) && findings.length >= 5) return false;
+    usedDomains.add(entry.domain);
+    score += Math.round((entry.weight || 18) * Math.min(1, Math.max(0.65, similarity)));
+    findings.push({
+      type: 'tone',
+      source,
+      corpusId: entry.id,
+      title: entry.domain,
+      severity: entry.severity || 'moderate',
+      fragment,
+      canonicalPhrase: similarity >= 0.995 ? '完整案例直接命中' : '完整案例相似語句',
+      reason: similarity >= 0.995
+        ? `${entry.warning} 本句直接命中離線案例「${entry.category}」。`
+        : `${entry.warning} 本句與離線案例「${entry.category}」的語言結構相近（相似度 ${Math.round(similarity * 100)}%）。`,
+      safeAction: entry.safeAction,
+      legalNotes: getLegalNotes(entry.legal),
+      sourceNotes: [],
+      safeScenarioIds: safeScenarioIdsForCategory(entry.domain),
+      matchedExample: entry.text,
+      expertSimilarity: Math.round(similarity * 100),
+      expertDomain: entry.domain
+    });
+    return true;
+  };
+
+  // 完整案例本身必須可被完整案例庫命中。此索引只做正規化後的直接比對，
+  // 不會把一般工作詞的低相似度誤判成霸凌。
+  const wholeExact = EXPERT_EXACT_INDEX.get(exactExpertKey(text));
+  if (wholeExact) {
+    addFinding(wholeExact, 1, normalizeText(text));
+    return { findings: dedupeFindings(findings), score };
+  }
+
+  const fragments = normalizeText(text)
+    .split(/(?<=[。！？!?；;\n])/u)
+    .map(x => x.trim())
+    .filter(x => exactExpertKey(x).length >= 3);
+
   for (const fragment of fragments.slice(0, 80)) {
+    const exact = EXPERT_EXACT_INDEX.get(exactExpertKey(fragment));
+    if (exact) {
+      addFinding(exact, 1, fragment);
+      if (findings.length >= 12) break;
+      continue;
+    }
+
     const compact = compactExpertText(fragment);
     if (!EXPERT_RISK_ANCHORS.test(fragment) && compact.length < 10) continue;
     const candidateCounts = new Map();
@@ -1834,32 +1919,14 @@ function scanExpertCorpus(text, source = '原始訊息') {
       if (!best || similarity > best.similarity) best = { prepared, similarity };
     }
     if (!best) continue;
-    const minThreshold = compact.length <= 7 ? 0.60 : compact.length <= 14 ? 0.48 : 0.42;
+    const anchored = EXPERT_RISK_ANCHORS.test(fragment);
+    // 沒有任何風險錨點時，只接受高度接近的案例。長句單靠共通工作詞
+    // （例如「工作成果」「回報進度」）不應因 40% 左右字面相似就被判成霸凌。
+    const minThreshold = anchored
+      ? (compact.length <= 7 ? 0.60 : compact.length <= 14 ? 0.48 : 0.42)
+      : (compact.length <= 14 ? 0.66 : 0.62);
     if (best.similarity < minThreshold) continue;
-    const entry = best.prepared.entry;
-    if (usedEntryIds.has(entry.id)) continue;
-    usedEntryIds.add(entry.id);
-    // 同一長句如果連續命中同一領域，只保留最具代表性者，避免卡片洗版。
-    if (usedDomains.has(entry.domain) && findings.length >= 5) continue;
-    usedDomains.add(entry.domain);
-    score += Math.round((entry.weight || 18) * Math.min(1, Math.max(0.65, best.similarity)));
-    findings.push({
-      type: 'tone',
-      source,
-      corpusId: entry.id,
-      title: entry.domain,
-      severity: entry.severity || 'moderate',
-      fragment,
-      canonicalPhrase: '完整案例相似語句',
-      reason: `${entry.warning} 本句與離線案例「${entry.category}」的語言結構相近（相似度 ${Math.round(best.similarity * 100)}%）。`,
-      safeAction: entry.safeAction,
-      legalNotes: getLegalNotes(entry.legal),
-      sourceNotes: [],
-      safeScenarioIds: safeScenarioIdsForCategory(entry.domain),
-      matchedExample: entry.text,
-      expertSimilarity: Math.round(best.similarity * 100),
-      expertDomain: entry.domain
-    });
+    addFinding(best.prepared, best.similarity, fragment);
     if (findings.length >= 12) break;
   }
   return { findings: dedupeFindings(findings), score };
@@ -2136,6 +2203,139 @@ function scanWorkContext(substance = {}, options = {}) {
   return { findings: dedupeFindings(findings), blocking: dedupeFindings(blocking), score };
 }
 
+
+// v1.10: structured fields are user input, not trusted facts.  Even manually
+// edited fields are neutralized before generation so insults, blame labels and
+// vague commands cannot bypass the raw-message safety layer.
+const SUBJECTIVE_WORK_LABEL = /(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|惡搞|搞砸|搞爛|亂七八糟|一團亂|爛透|爛到不行|很爛|超爛|有夠爛|垃圾|狗屁|鬼東西|雷包|豬隊友|拖油瓶)/gu;
+const PERSON_ATTACK_WORDS = /(?:白癡|智障|腦殘|低能|廢物|沒腦|腦袋有洞|腦子進水|沒帶腦|蠢蛋|笨蛋|弱智|神經病)/gu;
+const FINANCE_TERMS = /(?:核銷|請款|報帳|報銷|發票|收據|憑證|費用|帳務|會計)/u;
+const SCHEDULE_TERMS = /(?:排班|班表|班次|輪班|值班|調班|缺班|出勤|人力配置|時段衝突)/u;
+const DOCUMENT_TERMS = /(?:報告|報表|文件|簡報|附件|版本|表單|紀錄|公文|企劃|計畫書)/u;
+const SYSTEM_TERMS = /(?:網站|程式|系統|功能|頁面|版本|錯誤|bug|BUG|當機|閃退)/u;
+
+function concreteTopicFromText(text) {
+  const value = cleanText(text);
+  if (!value) return '';
+  if (FINANCE_TERMS.test(value)) return /核銷/u.test(value) ? '核銷' : /請款/u.test(value) ? '請款' : '核銷與請款';
+  if (SCHEDULE_TERMS.test(value)) return '排班';
+  const doc = value.match(/(?:報告|報表|簡報|附件|公文|文件|表單|紀錄|企劃|計畫書)/u);
+  if (doc) return doc[0];
+  if (SYSTEM_TERMS.test(value)) return /網站/u.test(value) ? '網站' : /程式/u.test(value) ? '程式' : '系統';
+  return '';
+}
+
+function neutralizeFactSemantics(text, context = {}) {
+  let value = cleanText(text);
+  if (!value) return { text: '', changed: false };
+  const original = value;
+  const hadSubjective = SUBJECTIVE_WORK_LABEL.test(value) || PERSON_ATTACK_WORDS.test(value);
+  SUBJECTIVE_WORK_LABEL.lastIndex = 0;
+  PERSON_ATTACK_WORDS.lastIndex = 0;
+
+  // If an emotional label is followed by an observable consequence, keep the
+  // consequence and drop the blame.  This deliberately weakens causal claims.
+  value = value
+    .replace(/^(?:(?:你|妳|他|她|這|那)?\s*(?:在|又|一直|根本)?\s*)?(?:瞎搞|亂搞|胡搞|鬼搞|亂來|瞎弄|亂弄|亂做|惡搞|搞砸|搞爛)(?:了)?\s*[，,；;：:]?\s*(?:(?:結果|所以)?\s*(?:導致|造成|害得|弄得)\s*)?/u, '')
+    .replace(/^(?:目前|現階段|現在)?\s*(?:結果|所以)?\s*(?:導致|造成|害得|弄得)\s*/u, match => /^(?:目前|現階段|現在)/u.test(match) ? '目前' : '')
+    .replace(SUBJECTIVE_WORK_LABEL, '')
+    .replace(PERSON_ATTACK_WORDS, '')
+    .replace(/(?:你|妳)到底(?:在)?(?:做|弄)什麼(?:鬼)?/gu, '')
+    .replace(/(?:這|那)?到底是什麼(?:鬼)?(?:東西)?/gu, '')
+    .replace(/(?:連)?(?:三歲小孩|小學生|幼稚園|猴子)都會/gu, '')
+    .replace(/\b(?:很|超級|超|有夠|真的)\s*(?:扯|離譜|誇張|荒謬)\b/gu, '');
+
+  // Turn common blame-heavy outcomes into observable status descriptions.
+  value = value
+    .replace(/(?:核銷|報帳)(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)/gu, '核銷作業未能完成')
+    .replace(/請款(?:作業)?(?:失敗|沒過|未過|被退(?:件)?|退件了?)/gu, '請款作業未能完成')
+    .replace(/(?:發票|收據|憑證)(?:全都|全部)?(?:錯了?|有錯|錯很多|錯一堆)/gu, '$&')
+    .replace(/^(.{1,30})(?:錯很多|錯一堆|一堆錯|全錯)$/u, '目前$1有多處需要重新確認')
+    .replace(/^(.{1,30})(?:很爛|超爛|爛透|爛到不行)$/u, '目前$1內容需要重新確認');
+
+  value = cleanText(value)
+    .replace(/^(?:導致|造成|害得|弄得)\s*/u, '')
+    .replace(/^(?:目前)?(?:你|妳|他|她)\s*/u, '')
+    .replace(/^[，。；：、！？\s]+|[，；：、\s]+$/gu, '');
+
+  if (!value && hadSubjective) {
+    const topic = cleanText(context.topic || '');
+    if (topic) {
+      if (SCHEDULE_TERMS.test(topic)) value = '目前排班安排需要重新確認';
+      else if (FINANCE_TERMS.test(topic)) value = '目前核銷或請款內容需要重新確認';
+      else value = `目前${topic}內容需要重新確認`;
+    }
+  }
+
+  if (value && !/^(?:目前|現階段|現在|本次|這次|已|尚|未|仍)/u.test(value)) {
+    if (/^(?:核銷作業|請款作業)/u.test(value)) value = `目前${value}`;
+  }
+  return { text: cleanText(value), changed: cleanText(value) !== cleanText(original) };
+}
+
+function neutralizeActionSemantics(text, context = {}) {
+  let value = cleanText(text);
+  if (!value) return { text: '', changed: false };
+  const original = value;
+  value = value
+    .replace(PERSON_ATTACK_WORDS, '')
+    .replace(SUBJECTIVE_WORK_LABEL, '')
+    .replace(/^(?:給我|馬上|立刻|現在就|趕快|趕緊|務必給我)\s*/u, '')
+    .replace(/(?:不然|否則|要不然).*/u, '')
+    .replace(/(?:做不到|沒做完|再錯|再犯).*$/u, '')
+    .replace(/^(?:請|麻煩|煩請)\s*/u, '')
+    .trim();
+
+  const contextText = `${context.fact || ''} ${context.topic || ''} ${context.reason || ''}`;
+  const concrete = concreteTopicFromText(contextText);
+  if (/^(?:校對|核對|檢查|確認)(?:一下)?$/u.test(value)) {
+    if (FINANCE_TERMS.test(contextText)) value = '重新核對核銷資料與相關憑證';
+    else if (SCHEDULE_TERMS.test(contextText)) value = '重新確認班表與班次安排';
+    else if (concrete) value = `重新檢查並確認${concrete}內容`;
+    else value = '重新檢查並確認相關內容';
+  } else if (/^(?:處理|弄好|弄完|改好)(?:一下)?$/u.test(value)) {
+    if (concrete) value = `確認${concrete}目前狀況並完成必要處理`;
+    else value = '確認目前狀況並完成必要處理';
+  }
+  return { text: cleanText(value), changed: cleanText(value) !== cleanText(original) };
+}
+
+function neutralizeReasonSemantics(text) {
+  let value = cleanText(text);
+  if (!value) return { text: '', changed: false };
+  const original = value;
+  value = value
+    .replace(PERSON_ATTACK_WORDS, '')
+    .replace(SUBJECTIVE_WORK_LABEL, '')
+    .replace(/(?:都是|就是)你(?:害的|造成的|的錯)/gu, '')
+    .replace(/(?:免得|省得)你又.*/gu, '')
+    .replace(/(?:讓大家看笑話|丟臉|很難看)/gu, '')
+    .replace(/^[，。；：、！？\s]+|[，；：、\s]+$/gu, '');
+  return { text: cleanText(value), changed: cleanText(value) !== cleanText(original) };
+}
+
+function reconcileStructuredMeaning(substance) {
+  const s = { ...substance };
+  const details = cleanText(`${s.fact || ''} ${s.action || ''} ${s.reason || ''}`);
+  const selected = cleanText(s.topic || '');
+  const inferred = concreteTopicFromText(details);
+  if (!selected || !details || !inferred) return s;
+
+  const selectedSchedule = SCHEDULE_TERMS.test(selected);
+  const selectedFinance = FINANCE_TERMS.test(selected);
+  const selectedDocument = DOCUMENT_TERMS.test(selected);
+  const detailsSchedule = SCHEDULE_TERMS.test(details);
+  const detailsFinance = FINANCE_TERMS.test(details);
+  const detailsDocument = DOCUMENT_TERMS.test(details);
+
+  const mismatched =
+    (selectedSchedule && !detailsSchedule && (detailsFinance || detailsDocument)) ||
+    (selectedFinance && !detailsFinance && (detailsSchedule || detailsDocument)) ||
+    (selectedDocument && !detailsDocument && (detailsSchedule || detailsFinance));
+  if (mismatched) s.topic = inferred;
+  return s;
+}
+
 function sanitizeOutputField(text, options, context = {}) {
   let output = normalizeText(text);
   let blocked = 0;
@@ -2200,8 +2400,17 @@ function sanitizeSubstance(substance, options) {
     cleaned[key] = result.text;
     blocked += result.blocked;
   }
+
+  const factResult = neutralizeFactSemantics(cleaned.fact, cleaned);
+  cleaned.fact = factResult.text;
+  const actionResult = neutralizeActionSemantics(cleaned.action, cleaned);
+  cleaned.action = actionResult.text;
+  const reasonResult = neutralizeReasonSemantics(cleaned.reason);
+  cleaned.reason = reasonResult.text;
+  blocked += Number(factResult.changed) + Number(actionResult.changed) + Number(reasonResult.changed);
+
   cleaned.tone = substance.tone || 'directive';
-  return { substance: cleaned, blocked };
+  return { substance: reconcileStructuredMeaning(cleaned), blocked };
 }
 
 function composeSafeMessage(substance, options) {
@@ -2418,9 +2627,14 @@ function analyzeMessage(raw, substance = {}, options = {}) {
     });
   }
 
+  const normalizedFieldChanges = ['topic', 'fact', 'action', 'deadline', 'reason', 'basis']
+    .filter(key => cleanText(substance[key] || '') !== cleanText(sanitized.substance[key] || ''));
+
   return {
     safeText,
     copyable,
+    sanitizedSubstance: sanitized.substance,
+    normalizedFieldChanges,
     outputNotice,
     findings: deduped,
     score,
@@ -2544,7 +2758,8 @@ async function handleAnalyze() {
     });
     result.extraction = extraction;
     result.engineLabel = engineLabel;
-    renderExtractionStatus(extraction, engineLabel);
+    applySanitizedSubstanceToForm(result.sanitizedSubstance || substance);
+    renderExtractionStatus(extraction, engineLabel, result);
     renderResult(result);
   } catch (error) {
     console.error(error);
@@ -2569,11 +2784,28 @@ function applyExtractedSubstance(substance, originalManual, extraction) {
   if (extraction?.needsInput) $('extractionStatus').dataset.confidence = 'insufficient';
 }
 
-function renderExtractionStatus(extraction, engineLabel) {
+function applySanitizedSubstanceToForm(substance) {
+  if (!substance) return;
+  const fieldMap = {
+    topic: 'topicText', fact: 'factText', action: 'actionText', deadline: 'deadlineText', reason: 'reasonText', basis: 'basisText'
+  };
+  for (const [key, id] of Object.entries(fieldMap)) {
+    const node = $(id);
+    if (!node) continue;
+    const normalized = String(substance[key] || '').trim();
+    if (node.value.trim() !== normalized) node.value = normalized;
+  }
+  syncPresetControlsFromSubstance(substance, selectedPresetScenarioId || '');
+}
+
+function renderExtractionStatus(extraction, engineLabel, result = null) {
   const target = $('extractionStatus');
   if (!target) return;
+  const normalizedLabels = { topic: '工作主題', fact: '客觀事實', action: '要求行動', deadline: '期限', reason: '原因／影響', basis: '職務依據' };
+  const normalizedFields = (result?.normalizedFieldChanges || []).map(key => normalizedLabels[key] || key);
+  const normalizedNote = normalizedFields.length ? `；已將「${normalizedFields.join('、')}」去除責罵／模糊語意並改成較客觀、可執行的內容` : '';
   if (!extraction) {
-    target.textContent = `本次未啟用自動抽取；使用 ${engineLabel} 依目前欄位潤稿。`;
+    target.textContent = `本次未啟用自動抽取；使用 ${engineLabel} 依目前欄位潤稿${normalizedNote}。`;
     target.dataset.confidence = 'manual';
     return;
   }
@@ -2584,7 +2816,7 @@ function renderExtractionStatus(extraction, engineLabel) {
   target.dataset.confidence = extraction.confidence || 'unknown';
   target.textContent = extraction.needsInput
     ? `${engineLabel}：原始訊息沒有足夠的可執行工作內容，未從辱罵或威脅自行捏造要求。請補充實際工作事項。${audienceHint}`
-    : `${engineLabel}：已抽取${fields.length ? `「${fields.join('、')}」` : '工作意圖'}${audienceHint}；可信度 ${extraction.confidence || '未標示'}。你可直接修正欄位後再次潤稿。`;
+    : `${engineLabel}：已抽取${fields.length ? `「${fields.join('、')}」` : '工作意圖'}${audienceHint}；可信度 ${extraction.confidence || '未標示'}${normalizedNote}。你可直接修正欄位後再次潤稿。`;
 }
 
 function renderResult(result) {
@@ -2849,7 +3081,7 @@ function initializeSmartFields() {
   const select = $('topicPresetSelect');
   if (!select) return;
   resetSelect(select, '常用選項：先選工作主題');
-  const priority = ['排班', '問題或錯誤提前回報', '工作進度', '工作時程', '報告', '簡報', '附件', '會議紀錄', '工作交接', '工作錯誤與改善', '工作表現回饋', '團隊溝通', '客訴處理', '外部合作進度', '研究工作與資料品質', '醫療或照護紀錄'];
+  const priority = ['排班', '核銷與請款', '文件校對', '問題或錯誤提前回報', '工作進度', '工作時程', '報告', '簡報', '附件', '會議紀錄', '工作交接', '工作錯誤與改善', '工作表現回饋', '團隊溝通', '客訴處理', '外部合作進度', '研究工作與資料品質', '醫療或照護紀錄'];
   const byTopic = new Map();
   for (const scenario of SAFE_MESSAGE_CORPUS.scenarios || []) {
     const topic = String(scenario.topic || '').trim();
@@ -2962,7 +3194,7 @@ function resetPresetControls() {
 }
 
 function voiceBiasTerms(targetId) {
-  const common = ['排班','班表','班次','輪班','值班','回報','風險','錯誤','異常','不確定','交接','附件','版本','上傳','報告','簡報','進度','時程','會議紀錄','客觀事實','申訴','病歷','資料','需求','修正','確認'];
+  const common = ['排班','班表','核銷','請款','報帳','發票','收據','憑證','校對','核對','班次','輪班','值班','回報','風險','錯誤','異常','不確定','交接','附件','版本','上傳','報告','簡報','進度','時程','會議紀錄','客觀事實','申訴','病歷','資料','需求','修正','確認'];
   const topic = String($('topicText')?.value || '').trim();
   const scenarios = scenariosForTopic(topic);
   const preferred = scenarioById(selectedPresetScenarioId);
@@ -3021,31 +3253,30 @@ function setVoiceStatus(text, state = '') {
 
 function stopVoiceInput() {
   try { activeSpeechRecognition?.stop?.(); } catch (_) {}
-  if (activeVoiceButton) activeVoiceButton.classList.remove('listening');
+  if (activeVoiceButton) setVoiceButtonState(activeVoiceButton, false);
   activeSpeechRecognition = null;
   activeVoiceButton = null;
 }
 
-async function configureLocalSpeechPreference(Recognition, recognition) {
-  if (!('processLocally' in recognition) || typeof Recognition.available !== 'function') return 'browser';
-  try {
-    const state = await Recognition.available({ langs: ['zh-TW'], processLocally: true, quality: 'dictation' });
-    if (state === 'available') {
-      recognition.processLocally = true;
-      return 'local';
-    }
-    recognition.processLocally = false;
-  } catch (_) {}
-  return 'browser';
+function setVoiceButtonState(button, listening) {
+  if (!button) return;
+  button.classList.toggle('listening', Boolean(listening));
+  if (!button.dataset.defaultLabel) button.dataset.defaultLabel = button.textContent;
+  button.textContent = listening ? '■ 停止語音' : button.dataset.defaultLabel;
+  button.setAttribute('aria-pressed', listening ? 'true' : 'false');
 }
 
-function applySpeechContextBias(recognition, targetId) {
-  try {
-    const Phrase = globalThis.SpeechRecognitionPhrase;
-    if (!Phrase || !('phrases' in recognition)) return;
-    const terms = voiceBiasTerms(targetId);
-    recognition.phrases = terms.map((phrase, index) => new Phrase(phrase, Math.max(2, 8 - index * .08)));
-  } catch (_) {}
+function createBasicSpeechRecognition(Recognition) {
+  const recognition = new Recognition();
+  recognition.lang = 'zh-TW';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 5;
+  // Do NOT set SpeechRecognition.phrases here. Contextual biasing is still an
+  // experimental API and some Chromium builds expose the property but reject
+  // it at runtime with `phrases-not-supported`. We instead rerank returned
+  // alternatives locally with voiceBiasTerms(), which is browser-safe.
+  return recognition;
 }
 
 async function startVoiceInput(button) {
@@ -3054,23 +3285,25 @@ async function startVoiceInput(button) {
   if (!target) return;
   const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
   if (!Recognition) {
-    setVoiceStatus('目前瀏覽器不支援網頁語音辨識；請改用系統聽寫或鍵盤輸入。', 'error');
+    setVoiceStatus('目前瀏覽器不支援網頁語音辨識；Windows 可使用 Win + H 系統聽寫。', 'error');
     target.focus();
     return;
   }
+
+  if (activeSpeechRecognition && activeVoiceButton === button) {
+    stopVoiceInput();
+    setVoiceStatus('已停止語音輸入。');
+    return;
+  }
   if (activeSpeechRecognition) stopVoiceInput();
-  const recognition = new Recognition();
+
+  const recognition = createBasicSpeechRecognition(Recognition);
   activeSpeechRecognition = recognition;
   activeVoiceButton = button;
-  button.classList.add('listening');
-  recognition.lang = 'zh-TW';
-  recognition.continuous = false;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 5;
-  applySpeechContextBias(recognition, targetId);
-  const mode = await configureLocalSpeechPreference(Recognition, recognition);
-  setVoiceStatus(mode === 'local' ? '正在使用裝置端繁體中文語音辨識…' : '正在聆聽…此瀏覽器可能使用其線上語音辨識服務。', 'active');
+  setVoiceButtonState(button, true);
+  setVoiceStatus('正在聆聽繁體中文…說完後會自動填入目前欄位。', 'active');
   let committed = false;
+
   recognition.onresult = event => {
     let finalText = '', interimText = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -3088,24 +3321,37 @@ async function startVoiceInput(button) {
       setVoiceStatus(`已輸入：${normalized}`, 'success');
     }
   };
+
   recognition.onerror = event => {
     const map = {
       'not-allowed':'麥克風權限未開啟，請允許此網站使用麥克風。',
-      'audio-capture':'找不到可用麥克風。',
-      'no-speech':'沒有辨識到語音，請再試一次。',
-      'network':'語音辨識服務目前無法連線；可改用鍵盤或系統聽寫。',
-      'language-not-supported':'目前瀏覽器不支援 zh-TW 語音辨識。'
+      'service-not-allowed':'瀏覽器目前不允許使用語音辨識服務，請檢查網站權限。',
+      'audio-capture':'找不到可用麥克風，請確認麥克風已連接且未被其他程式占用。',
+      'no-speech':'沒有辨識到語音，請靠近麥克風後再試一次。',
+      'network':'瀏覽器的語音辨識服務目前無法連線；可改用 Windows 的 Win + H 系統聽寫。',
+      'language-not-supported':'目前瀏覽器的語音服務不支援繁體中文（zh-TW）。',
+      'phrases-not-supported':'瀏覽器不支援實驗性詞組偏置；本版本已停用該功能，請重新整理頁面後再試。',
+      'aborted':'語音輸入已停止。'
     };
-    setVoiceStatus(map[event.error] || `語音辨識失敗：${event.error || '未知原因'}`, 'error');
+    setVoiceStatus(map[event.error] || `語音辨識失敗：${event.error || '未知原因'}`, event.error === 'aborted' ? '' : 'error');
   };
+
   recognition.onend = () => {
-    button.classList.remove('listening');
-    if (!committed && $('voiceStatus')?.classList.contains('active')) setVoiceStatus('語音輸入已停止；若沒有文字，可再按一次語音輸入。');
+    setVoiceButtonState(button, false);
+    if (!committed && $('voiceStatus')?.classList.contains('active')) {
+      setVoiceStatus('沒有收到可用文字；請再按一次語音輸入，或使用 Win + H 系統聽寫。');
+    }
     activeSpeechRecognition = null;
     activeVoiceButton = null;
   };
-  try { recognition.start(); target.focus(); }
-  catch (error) { setVoiceStatus(`無法啟動語音辨識：${error?.message || error}`, 'error'); stopVoiceInput(); }
+
+  try {
+    recognition.start();
+    target.focus();
+  } catch (error) {
+    setVoiceStatus(`無法啟動語音辨識：${error?.message || error}`, 'error');
+    stopVoiceInput();
+  }
 }
 
 function initializeVoiceInput() {
@@ -3309,6 +3555,9 @@ if (typeof module !== 'undefined' && module.exports) {
     scanWorkContext,
     sanitizeOutputField,
     sanitizeSubstance,
+    neutralizeFactSemantics,
+    neutralizeActionSemantics,
+    reconcileStructuredMeaning,
     composeSafeMessage,
     cleanText,
     normalizeText,

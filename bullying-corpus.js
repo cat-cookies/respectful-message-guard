@@ -5,8 +5,8 @@
   if (root) root.BULLYING_CORPUS_DATA = data;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function buildCorpus() {
   const data = /*__JSON_START__*/ {
-  "version": "2026.08.07-1.8",
-  "updated": "2026-08-07",
+  "version": "2026.08.08-1.10",
+  "updated": "2026-08-08",
   "description": "單一離線霸凌與高風險語言主語料庫。合併原高風險詞彙、語句結構、工作內容規則與 1,349 筆完整案例相似語料，並加入大量繁體中文變體與隱性施壓句型。命中僅代表需要人工檢視的風險訊號，不等於違法或職場霸凌法律認定。",
   "legalCatalog": {
     "OSH22-1": {
@@ -58122,6 +58122,937 @@
       ],
       "generated": true,
       "family": "GEN-SILENCING"
+    },
+    {
+      "id": "SLANG-001",
+      "phrase": "瞎搞",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-002",
+      "phrase": "亂搞",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-003",
+      "phrase": "胡搞",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-004",
+      "phrase": "鬼搞",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-005",
+      "phrase": "亂來",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-006",
+      "phrase": "瞎弄",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-007",
+      "phrase": "亂弄",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-008",
+      "phrase": "亂做",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-009",
+      "phrase": "惡搞",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-010",
+      "phrase": "搞得一團亂",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-011",
+      "phrase": "做得亂七八糟",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-012",
+      "phrase": "做得跟垃圾一樣",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-013",
+      "phrase": "什麼爛東西",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-014",
+      "phrase": "這什麼鬼東西",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-015",
+      "phrase": "狗屁東西",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-016",
+      "phrase": "一坨垃圾",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-017",
+      "phrase": "一坨屎",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-018",
+      "phrase": "做得像屎",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-019",
+      "phrase": "爛到不行",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-020",
+      "phrase": "有夠爛",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-021",
+      "phrase": "廢到笑",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-022",
+      "phrase": "雷包",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-023",
+      "phrase": "豬隊友",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-024",
+      "phrase": "拖油瓶",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-025",
+      "phrase": "沒帶腦",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-026",
+      "phrase": "用膝蓋想都知道",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-027",
+      "phrase": "連猴子都會",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-028",
+      "phrase": "幼稚園都會",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-029",
+      "phrase": "到底在搞什麼鬼",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-030",
+      "phrase": "到底在做什麼鬼",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-031",
+      "phrase": "這種東西也能錯",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-032",
+      "phrase": "到底要多蠢",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-033",
+      "phrase": "蠢成這樣",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-034",
+      "phrase": "笨成這樣",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-035",
+      "phrase": "真的沒救",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-036",
+      "phrase": "不要再雷大家",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-037",
+      "phrase": "不要拖累大家",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-038",
+      "phrase": "整天只會出包",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-039",
+      "phrase": "只會製造麻煩",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-040",
+      "phrase": "越幫越忙",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-041",
+      "phrase": "根本來亂的",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-042",
+      "phrase": "來亂的嗎",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-043",
+      "phrase": "你是來亂的嗎",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-044",
+      "phrase": "你有在用腦嗎",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-045",
+      "phrase": "看了就火大",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-046",
+      "phrase": "讓人看了就生氣",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-047",
+      "phrase": "不要丟人現眼",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-048",
+      "phrase": "丟臉死了",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
+    },
+    {
+      "id": "SLANG-049",
+      "phrase": "有夠丟臉",
+      "category": "貶抑式責罵或工作能力羞辱",
+      "severity": "moderate",
+      "weight": 14,
+      "warning": "這類說法以貶抑、嘲諷或人格化標籤取代具體工作事實，容易使工作回饋變成人身攻擊或羞辱。",
+      "safeAction": "刪除貶抑標籤，改為描述可觀察的錯誤、目前狀況、需完成的行動與合理期限。",
+      "legal": [
+        "OSH22-1",
+        "WBB2",
+        "CIVIL_DIGNITY"
+      ],
+      "sources": [
+        "SRC-MOL-OSH22-1",
+        "SRC-MOL-WBB2",
+        "SRC-JUD-SHIEH"
+      ]
     }
   ],
   "patternEntries": [

@@ -196,7 +196,7 @@
           <span id="charCount">0 / 8000</span>
           <span>文字內容只在本機處理。若啟用瀏覽器 Python，只會從 CDN 下載 Python 執行環境，不會把你的訊息送到 CDN。</span>
         </div>
-        <p id="voiceStatus" class="voice-status" role="status">語音輸入使用瀏覽器的語音辨識功能；支援裝置端辨識時會優先使用，否則瀏覽器可能使用其線上語音服務。文字潤稿本身仍不會送到雲端文字模型。</p>
+        <p id="voiceStatus" class="voice-status" role="status">語音輸入採用瀏覽器相容性較高的基本語音辨識，不使用實驗性的詞組偏置功能。辨識結果會再以本機工作語料重新排序與修正；瀏覽器本身可能使用線上語音服務，文字潤稿則不會送到雲端文字模型。</p>
         <p id="pasteNotice" class="paste-notice" role="status" hidden>偵測到剪貼簿內含圖片或貼圖。本網站不會讀取、上傳或保存圖片；分析時會將「使用貼圖」列為溝通風險提醒。</p>
         <section class="substance-box" aria-labelledby="substanceTitle">
           <div class="substance-heading">
@@ -206,7 +206,7 @@
             </div>
             <span class="source-lock-badge">先抽取，再重寫</span>
           </div>
-          <p class="field-help"><strong>預設會先從原始訊息自動填入空白欄位；你可以再修正。</strong>系統仍會檢查「工作要求本身」是否合理。涉及陪酒／私人差事、強制社交、休假或下班後持續待命、明顯不合理目標、性別化要求、不實紀錄或安全程序規避時，會直接提示或阻止產生可複製版本。</p>
+          <p class="field-help"><strong>預設會先從原始訊息自動填入空白欄位；你可以再修正。</strong>人工填入的欄位也不是直接照抄；系統會先去除羞辱、責罵與含糊命令，轉成較客觀、可執行的內容，再檢查「工作要求本身」是否合理。涉及陪酒／私人差事、強制社交、休假或下班後持續待命、明顯不合理目標、性別化要求、不實紀錄或安全程序規避時，會直接提示或阻止產生可複製版本。</p>
           <label class="check-row extraction-option" for="autoExtractOption">
             <input id="autoExtractOption" type="checkbox" checked>
             <span>自動從原始訊息抽取工作意圖，僅補入目前空白欄位</span>
@@ -407,7 +407,7 @@
 
     <footer class="site-footer">
       <p>本工具採離線語料庫、工作合理性規則與多層潤稿引擎，目的在於降低傳送前的溝通與個資風險；不提供法律意見，也不取代正式調查、申訴或司法程序。</p>
-      <p>版本 1.9.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機 Python 優先、瀏覽器 Python 可用、離線 JavaScript 保底；無雲端文字 API、無分析追蹤、無 Cookie。</p>
+      <p>版本 1.10.0｜語料庫 <span id="corpusVersion">載入中</span>｜法規查核日期：2026年8月7日｜本機 Python 優先、瀏覽器 Python 可用、離線 JavaScript 保底；無雲端文字 API、無分析追蹤、無 Cookie。</p>
     </footer>
   </div>
 
@@ -430,7 +430,7 @@
       <h3>網路使用範圍</h3>
       <p>GitHub Pages 線上使用時，頁面可向 jsDelivr 下載固定版本的 Pyodide 執行環境；不會把輸入文字加入網址、請求內容或送至第三方 API。本機啟動版只呼叫 127.0.0.1 的 Python 服務；若 Python 不可用，核心功能會退回隨網站一起部署的 JavaScript 引擎。</p>
       <h3>語音輸入另有瀏覽器層級限制</h3>
-      <p>網站會優先要求裝置端繁體中文語音辨識；若目前瀏覽器或裝置不支援，Web Speech API 可能改由瀏覽器供應商的線上語音服務處理音訊。本站不保存音訊，也不把辨識後文字送到雲端文字模型。若工作內容高度敏感，建議改用鍵盤或作業系統的離線聽寫功能。</p>
+      <p>語音按鈕使用瀏覽器的 Web Speech API，採相容性較高的基本繁體中文辨識，不啟用實驗性的詞組偏置或裝置端語言套件 API。瀏覽器供應商仍可能使用線上語音服務處理音訊；本站不保存音訊，也不把辨識後文字送到雲端文字模型。若瀏覽器語音服務不可用，可直接使用 Windows 的 Win + H 系統聽寫。</p>
       <h3>低耗能</h3>
       <p>使用小型規則引擎，不下載大型模型、不進行伺服器推論，也不持續背景運算。分析只在按下按鈕時執行。</p>
       <h3>仍須注意</h3>
